@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type InternationalPropertyInput, type PropertyRow, type TeamMemberRow, useCrmData } from "./lib/useCrmData";
 import { ContentView } from "./ContentView";
 import { VideoStudio } from "./video/VideoStudio";
@@ -982,14 +982,27 @@ function PropertyModal({ contacts, organizationId, initial, onClose, onSave }: {
   const [videoEtat, setVideoEtat] = useState<"idle" | "montage" | "televersement" | "pret" | "erreur">(initial?.video_url ? "pret" : "idle");
   const [videoProgres, setVideoProgres] = useState(0);
   const [videoMessage, setVideoMessage] = useState("");
+  const [geoErreur, setGeoErreur] = useState("");
+  const [adresseLocalisee, setAdresseLocalisee] = useState(adresse);
 
   async function localiser() {
-    if (!adresse.trim()) return;
+    if (!adresse.trim() || adresse.trim().length < 6) return;
     setGeocodage(true);
+    setGeoErreur("");
     const resultat = await geocoderAdresse(adresse);
     setGeocodage(false);
-    if (resultat) setGeo(resultat); else setVideoMessage("");
+    setAdresseLocalisee(adresse);
+    if (resultat) setGeo(resultat);
+    else setGeoErreur("Adresse introuvable sur la carte — précise la ville ou le pays, ou ajuste l'adresse.");
   }
+
+  // Localisation automatique 1 seconde après la dernière frappe (en plus du bouton et du blur)
+  useEffect(() => {
+    if (!adresse.trim() || adresse.trim().length < 6 || adresse === adresseLocalisee) return;
+    const minuteur = setTimeout(() => { localiser(); }, 1000);
+    return () => clearTimeout(minuteur);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adresse]);
 
   async function ajouterPhotos(fichiers: FileList | null, principale: boolean) {
     if (!fichiers || !fichiers.length || !organizationId) return;
@@ -1063,7 +1076,9 @@ function PropertyModal({ contacts, organizationId, initial, onClose, onSave }: {
         bathrooms: form.get("bathrooms") ? Number(form.get("bathrooms")) : null,
         areaSqft: form.get("areaSqft") ? Number(form.get("areaSqft")) : null,
         photoUrl: photoPrincipale?.url || "",
-        photos: galerie.filter((p) => p.url).map((p) => p.url),
+        photos: galerie.filter((p) => p.url).map((p) => p.url).length > 0
+          ? galerie.filter((p) => p.url).map((p) => p.url)
+          : photoPrincipale?.url ? [photoPrincipale.url] : [],
         lat: geo?.lat ?? null,
         lng: geo?.lng ?? null,
         videoUrl,
@@ -1088,11 +1103,12 @@ function PropertyModal({ contacts, organizationId, initial, onClose, onSave }: {
       <div className="modal-title"><div><span>Propriétés</span><h2>{initial ? "Modifier la fiche" : "Nouvelle fiche"}</h2></div><button type="button" onClick={onClose}><X size={20} /></button></div>
 
       <label>Adresse<input name="address" required value={adresse} onChange={(e) => setAdresse(e.target.value)} onBlur={localiser} placeholder="123 rue des Érables, Laval" /></label>
-      <div className="button-row" style={{ marginTop: -8, marginBottom: 10 }}>
+      <div className="button-row" style={{ marginTop: -8, marginBottom: 10, flexWrap: "wrap" }}>
         <button type="button" className="trash-action" onClick={localiser} disabled={geocodage || !adresse.trim()}>
           <MapPin size={13} /> {geocodage ? "Localisation…" : "Localiser sur la carte"}
         </button>
-        {geo && <span className="result-count">📍 {geo.libelle.split(",").slice(0, 3).join(",")}</span>}
+        {geo && <span className="result-count">📍 {geo.approximatif ? "Localisation approximative (secteur) : " : ""}{geo.libelle.split(",").slice(0, 3).join(",")}</span>}
+        {!geocodage && geoErreur && <span className="result-count" style={{ color: "#B91C1C" }}>{geoErreur}</span>}
       </div>
       {geo && <div style={{ marginBottom: 12 }}><AddressMap lat={geo.lat} lng={geo.lng} /></div>}
 

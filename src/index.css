@@ -256,8 +256,9 @@ kbd{margin-left:auto;display:flex;align-items:center;gap:2px;padding:2px 6px;bac
 .recommended>button{background:#f4eadf;color:#654d3c;border:0}.launch-offer{display:block;margin-top:10px;text-align:center;color:#a17051;font-size:7px}.recommended .launch-offer{color:#d7b596}
 .stripe-note{text-align:center;color:#8e928d;font-size:9px;margin-top:15px}
 
-.modal-layer{position:fixed;z-index:60;inset:0;background:rgba(18,37,32,.42);backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
+.modal-layer{position:fixed;z-index:60;inset:0;background:rgba(18,37,32,.42);backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:center;padding:5vh 14px;overflow-y:auto}
 .command-panel,.contact-modal{width:min(530px,calc(100% - 28px));background:#FFFFFF;border:1px solid #ddd9d0;border-radius:13px;box-shadow:0 25px 70px rgba(11,31,26,.22);overflow:hidden;animation:modal-in .2s ease}
+.contact-modal{max-height:90vh;overflow-y:auto}
 .command-input{height:60px;display:flex;align-items:center;gap:11px;padding:0 17px;border-bottom:1px solid #e3e1da}.command-input input{flex:1;border:0;background:none;outline:0}
 .command-input button{border:1px solid #dddcd5;background:#f6f4ef;border-radius:5px;color:#878b86;font-size:9px;padding:4px 7px}
 .command-panel>p{font-size:8px;color:#9a9d98;letter-spacing:.8px;padding:10px 17px 2px}
