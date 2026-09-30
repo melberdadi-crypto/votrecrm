@@ -2,6 +2,10 @@ import { useMemo, useState } from "react";
 import { type InternationalPropertyInput, type PropertyRow, type TeamMemberRow, useCrmData } from "./lib/useCrmData";
 import { ContentView } from "./ContentView";
 import { VideoStudio } from "./video/VideoStudio";
+import AddressMap from "./AddressMap";
+import { geocoderAdresse, type ResultatGeocodage } from "./lib/geocode";
+import { televerserPhoto, televerserVideo } from "./lib/storage";
+import { chargerFFmpeg, genererVideoPhotos } from "./video/moteur";
 import {
   ArrowLeftFromLine,
   ArrowRight,
@@ -409,7 +413,7 @@ function App() {
             } catch (error) { announce(error instanceof Error ? error.message : "Mise à jour impossible"); }
           }} />}
           {page === "Conversations SMS" && <ConversationsView contacts={activeContacts} messages={activeMessages} selectedId={conversationContactId} onSelect={setConversationContactId} />}
-          {page === "Propriétés" && <PropertiesView properties={crm.session ? crm.properties : []} contacts={activeContacts} onCreate={async (input) => {
+          {page === "Propriétés" && <PropertiesView properties={crm.session ? crm.properties : []} contacts={activeContacts} organizationId={crm.session ? crm.organizationId : null} onCreate={async (input) => {
             try { if (crm.session) await crm.addProperty(input); announce(input.international?.publier ? "Propriété ajoutée et publiée sur le site" : "Propriété ajoutée"); } catch (error) { announce(error instanceof Error ? error.message : "Ajout impossible"); }
           }} onUpdate={async (id, input) => {
             try { if (crm.session) await crm.updateProperty(id, input); announce("Propriété mise à jour"); } catch (error) { announce(error instanceof Error ? error.message : "Mise à jour impossible"); }
@@ -912,9 +916,9 @@ const slugify = (value: string) =>
 
 const WEBSITE_BASE_URL = "https://mohamedelberhdadi.ca";
 
-type PropertyFormInput = { address: string; price: string; propertyType: string; bedrooms: number | null; bathrooms: number | null; areaSqft: number | null; photoUrl: string; description: string; contactId: string | null; international?: InternationalPropertyInput | null };
+type PropertyFormInput = { address: string; price: string; propertyType: string; bedrooms: number | null; bathrooms: number | null; areaSqft: number | null; photoUrl: string; photos: string[]; lat: number | null; lng: number | null; videoUrl: string | null; description: string; contactId: string | null; international?: InternationalPropertyInput | null };
 
-function PropertiesView({ properties, contacts, onCreate, onUpdate, onStatusChange, onDelete }: { properties: PropertyRow[]; contacts: UiContact[]; onCreate: (input: PropertyFormInput) => void; onUpdate: (id: string, input: PropertyFormInput) => void; onStatusChange: (id: string, status: PropertyRow["status"]) => void; onDelete: (id: string) => void }) {
+function PropertiesView({ properties, contacts, organizationId, onCreate, onUpdate, onStatusChange, onDelete }: { properties: PropertyRow[]; contacts: UiContact[]; organizationId: string | null; onCreate: (input: PropertyFormInput) => void; onUpdate: (id: string, input: PropertyFormInput) => void; onStatusChange: (id: string, status: PropertyRow["status"]) => void; onDelete: (id: string) => void }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<PropertyRow | null>(null);
   const statusClass: Record<string, string> = { "Disponible": "success", "Sous offre": "warning", "Vendue": "muted", "Retirée": "muted" };
@@ -925,7 +929,7 @@ function PropertiesView({ properties, contacts, onCreate, onUpdate, onStatusChan
     return <>
       <div className="workspace-title" style={{ marginBottom: 14 }}><div><span>Propriétés</span><strong>0 fiche</strong></div><button onClick={() => setModalOpen(true)}><Plus size={16} /> Nouvelle propriété</button></div>
       <div className="empty-state" style={{ minHeight: 260 }}><Building2 size={26} /><b>Aucune propriété pour l’instant</b><span>Ajoutez votre première fiche de propriété à vendre.</span></div>
-      {showModal && <PropertyModal contacts={contacts} initial={null} onClose={closeModal} onSave={(input) => { onCreate(input); closeModal(); }} />}
+      {showModal && <PropertyModal contacts={contacts} organizationId={organizationId} initial={null} onClose={closeModal} onSave={(input) => { onCreate(input); closeModal(); }} />}
     </>;
   }
 
@@ -957,52 +961,141 @@ function PropertiesView({ properties, contacts, onCreate, onUpdate, onStatusChan
         </article>
       ))}
     </div>
-    {showModal && <PropertyModal contacts={contacts} initial={editing} onClose={closeModal} onSave={(input) => { if (editing) onUpdate(editing.id, input); else onCreate(input); closeModal(); }} />}
+    {showModal && <PropertyModal contacts={contacts} organizationId={organizationId} initial={editing} onClose={closeModal} onSave={(input) => { if (editing) onUpdate(editing.id, input); else onCreate(input); closeModal(); }} />}
   </>;
 }
 
-function PropertyModal({ contacts, initial, onClose, onSave }: { contacts: UiContact[]; initial: PropertyRow | null; onClose: () => void; onSave: (input: PropertyFormInput) => void }) {
+type PhotoEnCours = { url: string; apercu: string; fichier?: File; televersement?: boolean };
+
+function PropertyModal({ contacts, organizationId, initial, onClose, onSave }: { contacts: UiContact[]; organizationId: string | null; initial: PropertyRow | null; onClose: () => void; onSave: (input: PropertyFormInput) => void }) {
   const [publier, setPublier] = useState(Boolean(initial?.international && initial?.published));
   const [titre, setTitre] = useState(initial?.titre || "");
   const [slug, setSlug] = useState(initial?.slug || "");
   const [slugTouche, setSlugTouche] = useState(Boolean(initial?.slug));
+  const [adresse, setAdresse] = useState(initial?.address || "");
+  const [geo, setGeo] = useState<ResultatGeocodage | null>(initial?.lat && initial?.lng ? { lat: initial.lat, lng: initial.lng, libelle: initial.address } : null);
+  const [geocodage, setGeocodage] = useState(false);
+  const [photoPrincipale, setPhotoPrincipale] = useState<PhotoEnCours | null>(initial?.photo_url ? { url: initial.photo_url, apercu: initial.photo_url } : null);
+  const [galerie, setGalerie] = useState<PhotoEnCours[]>((initial?.photos ?? []).map((url) => ({ url, apercu: url })));
+  const [musique, setMusique] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(initial?.video_url ?? null);
+  const [videoEtat, setVideoEtat] = useState<"idle" | "montage" | "televersement" | "pret" | "erreur">(initial?.video_url ? "pret" : "idle");
+  const [videoProgres, setVideoProgres] = useState(0);
+  const [videoMessage, setVideoMessage] = useState("");
+
+  async function localiser() {
+    if (!adresse.trim()) return;
+    setGeocodage(true);
+    const resultat = await geocoderAdresse(adresse);
+    setGeocodage(false);
+    if (resultat) setGeo(resultat); else setVideoMessage("");
+  }
+
+  async function ajouterPhotos(fichiers: FileList | null, principale: boolean) {
+    if (!fichiers || !fichiers.length || !organizationId) return;
+    const liste = Array.from(fichiers);
+    if (principale) {
+      const fichier = liste[0];
+      const apercu = URL.createObjectURL(fichier);
+      setPhotoPrincipale({ url: "", apercu, fichier, televersement: true });
+      try {
+        const url = await televerserPhoto(organizationId, fichier);
+        setPhotoPrincipale({ url, apercu, fichier });
+      } catch { setPhotoPrincipale(null); }
+      return;
+    }
+    const nouvelles: PhotoEnCours[] = liste.map((fichier) => ({ url: "", apercu: URL.createObjectURL(fichier), fichier, televersement: true }));
+    setGalerie((current) => [...current, ...nouvelles]);
+    for (const item of nouvelles) {
+      try {
+        const url = await televerserPhoto(organizationId, item.fichier!);
+        setGalerie((current) => current.map((p) => p === item ? { ...p, url, televersement: false } : p));
+      } catch {
+        setGalerie((current) => current.filter((p) => p !== item));
+      }
+    }
+  }
+
+  function retirerPhoto(index: number) {
+    setGalerie((current) => current.filter((_, i) => i !== index));
+  }
+
+  async function genererVideo() {
+    const photosPretes = galerie.filter((p) => p.fichier && !p.televersement);
+    if (photosPretes.length < 2) return;
+    setVideoEtat("montage");
+    setVideoProgres(0);
+    setVideoMessage("Chargement du moteur vidéo…");
+    try {
+      const ff = await chargerFFmpeg();
+      setVideoMessage("Montage de la vidéo en cours…");
+      const blob = await genererVideoPhotos(ff, {
+        photos: photosPretes.map((p) => p.fichier!),
+        titre: titre || adresse || "Nouvelle propriété",
+        prix: (document.querySelector<HTMLInputElement>('input[name="price"]')?.value) || "",
+        lieu: [document.querySelector<HTMLInputElement>('input[name="ville"]')?.value, adresse].filter(Boolean).join(" · "),
+        musique,
+        volumeMusique: 0.45,
+      }, (ratio) => setVideoProgres(ratio));
+      setVideoEtat("televersement");
+      setVideoMessage("Envoi de la vidéo…");
+      if (!organizationId) throw new Error("Connexion requise");
+      const url = await televerserVideo(organizationId, blob);
+      setVideoUrl(url);
+      setVideoEtat("pret");
+      setVideoMessage("Vidéo prête !");
+    } catch (error) {
+      setVideoEtat("erreur");
+      setVideoMessage(error instanceof Error ? error.message : "La génération a échoué");
+    }
+  }
 
   return (
     <div className="modal-layer"><form className="contact-modal" onSubmit={(event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      const finalSlug = slug || slugify(titre || String(form.get("address") || ""));
+      const finalSlug = slug || slugify(titre || adresse);
       onSave({
-        address: String(form.get("address")),
+        address: adresse,
         price: String(form.get("price") || ""),
         propertyType: String(form.get("propertyType") || ""),
         bedrooms: form.get("bedrooms") ? Number(form.get("bedrooms")) : null,
         bathrooms: form.get("bathrooms") ? Number(form.get("bathrooms")) : null,
         areaSqft: form.get("areaSqft") ? Number(form.get("areaSqft")) : null,
-        photoUrl: String(form.get("photoUrl") || ""),
+        photoUrl: photoPrincipale?.url || "",
+        photos: galerie.filter((p) => p.url).map((p) => p.url),
+        lat: geo?.lat ?? null,
+        lng: geo?.lng ?? null,
+        videoUrl,
         description: String(form.get("description") || ""),
         contactId: String(form.get("contactId") || "") || null,
         international: publier || initial?.international ? {
           publier,
           slug: finalSlug,
-          titre: titre || String(form.get("address") || ""),
+          titre: titre || adresse,
           pays: String(form.get("pays") || ""),
           ville: String(form.get("ville") || ""),
           region: String(form.get("region") || ""),
           drapeau: String(form.get("drapeau") || ""),
           codePostal: String(form.get("codePostal") || ""),
           devise: String(form.get("devise") || "CAD"),
-          lat: form.get("lat") ? Number(form.get("lat")) : null,
-          lng: form.get("lng") ? Number(form.get("lng")) : null,
           superficieM2: form.get("superficieM2") ? Number(form.get("superficieM2")) : null,
           caracteristiques: String(form.get("caracteristiques") || "").split(",").map((s) => s.trim()).filter(Boolean),
-          photos: String(form.get("photos") || "").split("\n").map((s) => s.trim()).filter(Boolean),
           statut: String(form.get("statutIntl") || "À vendre"),
         } : null,
       });
     }}>
       <div className="modal-title"><div><span>Propriétés</span><h2>{initial ? "Modifier la fiche" : "Nouvelle fiche"}</h2></div><button type="button" onClick={onClose}><X size={20} /></button></div>
-      <label>Adresse<input name="address" required defaultValue={initial?.address} placeholder="123 rue des Érables, Laval" /></label>
+
+      <label>Adresse<input name="address" required value={adresse} onChange={(e) => setAdresse(e.target.value)} onBlur={localiser} placeholder="123 rue des Érables, Laval" /></label>
+      <div className="button-row" style={{ marginTop: -8, marginBottom: 10 }}>
+        <button type="button" className="trash-action" onClick={localiser} disabled={geocodage || !adresse.trim()}>
+          <MapPin size={13} /> {geocodage ? "Localisation…" : "Localiser sur la carte"}
+        </button>
+        {geo && <span className="result-count">📍 {geo.libelle.split(",").slice(0, 3).join(",")}</span>}
+      </div>
+      {geo && <div style={{ marginBottom: 12 }}><AddressMap lat={geo.lat} lng={geo.lng} /></div>}
+
       <div className="form-grid">
         <label>Prix<input name="price" defaultValue={initial?.price ?? ""} placeholder="Ex. 549 000 $" /></label>
         <label>Type<select name="propertyType" defaultValue={initial?.property_type ?? ""}><option value="">Sélectionner</option><option>Maison</option><option>Condo</option><option>Immeuble à revenus</option><option>Terrain</option><option>Autre</option></select></label>
@@ -1012,7 +1105,51 @@ function PropertyModal({ contacts, initial, onClose, onSave }: { contacts: UiCon
         <label>Salles de bain<input name="bathrooms" type="number" min={0} defaultValue={initial?.bathrooms ?? undefined} /></label>
         <label>Superficie (pi²)<input name="areaSqft" type="number" min={0} defaultValue={initial?.area_sqft ?? undefined} /></label>
       </div>
-      <label>Photo principale (lien URL, optionnel)<input name="photoUrl" defaultValue={initial?.photo_url ?? ""} placeholder="https://..." /></label>
+
+      <label>Photo principale
+        <input type="file" accept="image/*" onChange={(e) => ajouterPhotos(e.target.files, true)} disabled={!organizationId} />
+      </label>
+      {photoPrincipale && (
+        <div className="photo-grid" style={{ marginBottom: 10 }}>
+          <div className="photo-thumb"><img src={photoPrincipale.apercu} alt="Photo principale" />{photoPrincipale.televersement && <span className="photo-thumb__loading">Envoi…</span>}</div>
+        </div>
+      )}
+
+      <label>Galerie de photos (pour la fiche et la vidéo)
+        <input type="file" accept="image/*" multiple onChange={(e) => ajouterPhotos(e.target.files, false)} disabled={!organizationId} />
+      </label>
+      {galerie.length > 0 && (
+        <div className="photo-grid" style={{ marginBottom: 10 }}>
+          {galerie.map((p, i) => (
+            <div className="photo-thumb" key={i}>
+              <img src={p.apercu} alt={`Photo ${i + 1}`} />
+              {p.televersement && <span className="photo-thumb__loading">Envoi…</span>}
+              <button type="button" onClick={() => retirerPhoto(i)}><X size={12} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {!organizationId && <p className="settings-note">Connectez-vous pour téléverser des photos.</p>}
+
+      {galerie.filter((p) => p.fichier).length >= 2 && (
+        <div style={{ border: "1px solid var(--border, #e5e7eb)", borderRadius: 10, padding: 12, marginTop: 4, marginBottom: 10 }}>
+          <label className="consent" style={{ marginBottom: 8 }}>
+            <span><Clapperboard size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Vidéo promotionnelle générée depuis les photos</span>
+          </label>
+          <label>Musique de fond (optionnel)<input type="file" accept="audio/*" onChange={(e) => setMusique(e.target.files?.[0] ?? null)} /></label>
+          <div className="button-row" style={{ marginTop: 6 }}>
+            <button type="button" className="trash-action" onClick={genererVideo} disabled={videoEtat === "montage" || videoEtat === "televersement"}>
+              <Sparkles size={13} /> {videoEtat === "montage" || videoEtat === "televersement" ? "Génération en cours…" : "Générer une vidéo attirante"}
+            </button>
+            {(videoEtat === "montage" || videoEtat === "televersement") && <span className="result-count">{videoMessage} {videoEtat === "montage" ? `${Math.round(videoProgres * 100)}%` : ""}</span>}
+            {videoEtat === "erreur" && <span className="result-count">{videoMessage}</span>}
+          </div>
+          {videoUrl && videoEtat === "pret" && (
+            <video src={videoUrl} controls style={{ width: "100%", borderRadius: 10, marginTop: 10, maxHeight: 320 }} />
+          )}
+        </div>
+      )}
+
       {contacts.length > 0 && <label>Vendeur associé (optionnel)<select name="contactId" defaultValue={initial?.contact_id ?? ""}><option value="">Aucun</option>{contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
       <label>Description<textarea name="description" rows={3} defaultValue={initial?.description ?? ""} placeholder="Détails à retenir sur la propriété..." /></label>
 
@@ -1041,13 +1178,8 @@ function PropertyModal({ contacts, initial, onClose, onSave }: { contacts: UiCon
             <label>Superficie (m²)<input name="superficieM2" type="number" min={0} defaultValue={initial?.superficie_m2 ?? undefined} /></label>
             <label>Statut affiché<select name="statutIntl" defaultValue={initial?.statut ?? "À vendre"}><option>À vendre</option><option>À louer</option><option>Nouveau</option><option>Vedette</option></select></label>
           </div>
-          <div className="form-grid">
-            <label>Latitude (optionnel)<input name="lat" type="number" step="any" defaultValue={initial?.lat ?? undefined} placeholder="Ex. 48.8566" /></label>
-            <label>Longitude (optionnel)<input name="lng" type="number" step="any" defaultValue={initial?.lng ?? undefined} placeholder="Ex. 2.3522" /></label>
-          </div>
-          <p className="settings-note">Si tu ne connais pas les coordonnées exactes, laisse vide — la propriété n'apparaîtra pas sur la carte mais restera visible dans la liste.</p>
+          <p className="settings-note">{geo ? `Coordonnées trouvées automatiquement : ${geo.lat.toFixed(4)}, ${geo.lng.toFixed(4)}` : "Localise l'adresse ci-dessus pour que la propriété apparaisse sur la carte du site."}</p>
           <label>Caractéristiques (séparées par des virgules)<input name="caracteristiques" defaultValue={initial?.caracteristiques?.join(", ") ?? ""} placeholder="Piscine, Garage, Vue mer" /></label>
-          <label>Photos (une URL par ligne)<textarea name="photos" rows={3} defaultValue={initial?.photos?.join("\n") ?? ""} placeholder="https://...jpg" /></label>
         </div>
       )}
 

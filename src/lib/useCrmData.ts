@@ -73,6 +73,7 @@ export type PropertyRow = {
   international: boolean;
   published: boolean;
   demo: boolean;
+  video_url: string | null;
 };
 
 export type InternationalPropertyInput = {
@@ -85,11 +86,8 @@ export type InternationalPropertyInput = {
   drapeau: string;
   codePostal: string;
   devise: string;
-  lat: number | null;
-  lng: number | null;
   superficieM2: number | null;
   caracteristiques: string[];
-  photos: string[];
   statut: string;
 };
 
@@ -508,7 +506,13 @@ export function useCrmData() {
     setAutomationRules((current) => current.map((rule) => rule.id === id ? { ...rule, active } : rule));
   };
 
-  const addProperty = async (input: { address: string; price: string; propertyType: string; bedrooms: number | null; bathrooms: number | null; areaSqft: number | null; photoUrl: string; description: string; contactId: string | null; international?: InternationalPropertyInput | null }) => {
+  type PropertyBaseInput = {
+    address: string; price: string; propertyType: string; bedrooms: number | null; bathrooms: number | null; areaSqft: number | null;
+    photoUrl: string; photos: string[]; lat: number | null; lng: number | null; videoUrl: string | null;
+    description: string; contactId: string | null; international?: InternationalPropertyInput | null;
+  };
+
+  const addProperty = async (input: PropertyBaseInput) => {
     const { client, activeSession, activeOrganizationId } = requireContext();
     const intl = input.international;
     const { data, error: insertError } = await client
@@ -523,6 +527,10 @@ export function useCrmData() {
         bathrooms: input.bathrooms,
         area_sqft: input.areaSqft,
         photo_url: input.photoUrl || null,
+        photos: input.photos,
+        lat: input.lat,
+        lng: input.lng,
+        video_url: input.videoUrl || null,
         description: input.description || null,
         created_by: activeSession.user.id,
         ...(intl
@@ -535,11 +543,8 @@ export function useCrmData() {
               drapeau: intl.drapeau || null,
               code_postal: intl.codePostal || null,
               devise: intl.devise || null,
-              lat: intl.lat,
-              lng: intl.lng,
               superficie_m2: intl.superficieM2,
               caracteristiques: intl.caracteristiques,
-              photos: intl.photos,
               statut: intl.statut || null,
               international: intl.publier,
               published: intl.publier,
@@ -553,7 +558,7 @@ export function useCrmData() {
     setProperties((current) => [data as PropertyRow, ...current]);
   };
 
-  const updateProperty = async (id: string, input: { address: string; price: string; propertyType: string; bedrooms: number | null; bathrooms: number | null; areaSqft: number | null; photoUrl: string; description: string; contactId: string | null; international?: InternationalPropertyInput | null }) => {
+  const updateProperty = async (id: string, input: PropertyBaseInput) => {
     const { client } = requireContext();
     const intl = input.international;
     const { data, error: updateError } = await client
@@ -567,6 +572,10 @@ export function useCrmData() {
         bathrooms: input.bathrooms,
         area_sqft: input.areaSqft,
         photo_url: input.photoUrl || null,
+        photos: input.photos,
+        lat: input.lat,
+        lng: input.lng,
+        video_url: input.videoUrl || null,
         description: input.description || null,
         updated_at: new Date().toISOString(),
         ...(intl
@@ -579,11 +588,8 @@ export function useCrmData() {
               drapeau: intl.drapeau || null,
               code_postal: intl.codePostal || null,
               devise: intl.devise || null,
-              lat: intl.lat,
-              lng: intl.lng,
               superficie_m2: intl.superficieM2,
               caracteristiques: intl.caracteristiques,
-              photos: intl.photos,
               statut: intl.statut || null,
               international: intl.publier,
               published: intl.publier,
