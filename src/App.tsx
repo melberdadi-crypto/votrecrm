@@ -915,6 +915,7 @@ const slugify = (value: string) =>
     .replace(/(^-|-$)/g, "");
 
 const WEBSITE_BASE_URL = "https://mohamedelberhdadi.ca";
+const CENTRE_CARTE_DEFAUT = { lat: 45.6066, lng: -73.7124 }; // Laval, QC — point de départ si aucune adresse n'a encore été localisée
 
 type PropertyFormInput = { address: string; price: string; propertyType: string; bedrooms: number | null; bathrooms: number | null; areaSqft: number | null; photoUrl: string; photos: string[]; lat: number | null; lng: number | null; videoUrl: string | null; description: string; contactId: string | null; international?: InternationalPropertyInput | null };
 
@@ -1105,12 +1106,18 @@ function PropertyModal({ contacts, organizationId, initial, onClose, onSave }: {
       <label>Adresse<input name="address" required value={adresse} onChange={(e) => setAdresse(e.target.value)} onBlur={localiser} placeholder="123 rue des Érables, Laval" /></label>
       <div className="button-row" style={{ marginTop: -8, marginBottom: 10, flexWrap: "wrap" }}>
         <button type="button" className="trash-action" onClick={localiser} disabled={geocodage || !adresse.trim()}>
-          <MapPin size={13} /> {geocodage ? "Localisation…" : "Localiser sur la carte"}
+          <MapPin size={13} /> {geocodage ? "Localisation…" : "Localiser automatiquement"}
         </button>
         {geo && <span className="result-count">📍 {geo.approximatif ? "Localisation approximative (secteur) : " : ""}{geo.libelle.split(",").slice(0, 3).join(",")}</span>}
         {!geocodage && geoErreur && <span className="result-count" style={{ color: "#B91C1C" }}>{geoErreur}</span>}
       </div>
-      {geo && <div style={{ marginBottom: 12 }}><AddressMap lat={geo.lat} lng={geo.lng} /></div>}
+      <div style={{ marginBottom: 12 }}>
+        <AddressMap
+          lat={geo?.lat ?? CENTRE_CARTE_DEFAUT.lat}
+          lng={geo?.lng ?? CENTRE_CARTE_DEFAUT.lng}
+          onPositionChange={(lat, lng) => { setGeo({ lat, lng, libelle: "Emplacement choisi manuellement sur la carte", approximatif: false }); setGeoErreur(""); }}
+        />
+      </div>
 
       <div className="form-grid">
         <label>Prix<input name="price" defaultValue={initial?.price ?? ""} placeholder="Ex. 549 000 $" /></label>
