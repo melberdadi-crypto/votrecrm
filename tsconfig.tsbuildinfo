@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/ContentView.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/lib/supabase.ts","./src/lib/useCrmData.ts","./src/lib/utils.ts","./src/video/ScriptDuJour.tsx","./src/video/VideoStudio.tsx","./src/video/montage.ts","./src/video/moteur.ts","./vite.config.ts"],"version":"5.6.3"}
