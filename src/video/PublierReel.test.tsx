@@ -46,6 +46,16 @@ describe("PublierReel", () => {
     expect(String(pub.legende_instagram)).toContain("mohamedelberhdadi.ca");
   });
 
+  it("reprend la légende du script du jour et ajoute le lien du site", async () => {
+    render(<PublierReel blob={new Blob(["x"], { type: "video/mp4" })} texte="x" legendeScript={"Conseil du jour pour acheteurs.\n\n#Laval #Immo"} onClose={() => {}} />);
+    fireEvent.click(await screen.findByText(/Utiliser la légende du script du jour/));
+    const zones = screen.getAllByRole("textbox") as HTMLTextAreaElement[];
+    expect(zones[0].value).toContain("Conseil du jour pour acheteurs.");
+    expect(zones[0].value).toContain("www.mohamedelberhdadi.ca (lien dans la bio)");
+    expect(zones[1].value).not.toContain("#Laval");
+    expect(zones[1].value).toContain("https://www.mohamedelberhdadi.ca");
+  });
+
   it("bloque une vidéo de plus de 50 Mo", async () => {
     const lourde = { size: 60 * 1024 * 1024, type: "video/mp4" } as Blob;
     render(<PublierReel blob={lourde} texte="x" onClose={() => {}} />);

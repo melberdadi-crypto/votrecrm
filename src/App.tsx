@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { type InternationalPropertyInput, type PropertyRow, type TeamMemberRow, useCrmData } from "./lib/useCrmData";
 import { ContentView } from "./ContentView";
-import { MonteurReels, FenetreMonteur } from "./video/MonteurReels";
+import { FenetreMonteur } from "./video/MonteurReels";
+import { StudioReels } from "./video/StudioReels";
 import AddressMap from "./AddressMap";
 import { geocoderAdresse, type ResultatGeocodage } from "./lib/geocode";
 import { televerserPhoto, televerserVideo } from "./lib/storage";
@@ -437,7 +438,7 @@ function App() {
             } catch (error) { announce(error instanceof Error ? error.message : "Suppression impossible"); }
           }} />}
           {page === "Équipe" && <TeamView members={crm.session ? crm.teamMembers : []} organizationId={crm.session ? crm.organizationId : null} onAnnounce={announce} onRemove={async (id) => { try { await crm.removeTeamMember(id); announce("Membre retiré de l’équipe"); } catch (error) { announce(error instanceof Error ? error.message : "Action impossible"); } }} onRestore={async (id) => { try { await crm.restoreTeamMember(id); announce("Membre restauré"); } catch (error) { announce(error instanceof Error ? error.message : "Action impossible"); } }} onDeleteForever={async (id) => { try { await crm.deleteTeamMemberForever(id); announce("Membre supprimé définitivement"); } catch (error) { announce(error instanceof Error ? error.message : "Action impossible"); } }} onEmptyTrash={async () => { try { await crm.emptyTeamTrash(); announce("Corbeille de l’équipe vidée"); } catch (error) { announce(error instanceof Error ? error.message : "Action impossible"); } }} />}
-          {page === "Studio vidéo" && <MonteurReels publication={Boolean(crm.session)} onVideo={crm.session && crm.organizationId ? async (blob) => { const url = await televerserVideo(crm.organizationId as string, blob); announce("Vidéo enregistrée dans le CRM"); try { await navigator.clipboard.writeText(url); } catch { /* lien non copié */ } } : undefined} />}
+          {page === "Studio vidéo" && <StudioReels connected={Boolean(crm.session)} onVideo={crm.session && crm.organizationId ? async (blob) => { const url = await televerserVideo(crm.organizationId as string, blob); announce("Vidéo enregistrée dans le CRM"); try { await navigator.clipboard.writeText(url); } catch { /* lien non copié */ } } : undefined} />}
           {page === "Contenu" && <ContentView connected={Boolean(crm.session)} announce={announce} />}
           {page === "Paramètres" && <SettingsView industry={crm.industry} canChangePassword={Boolean(crm.session)} onChangePassword={async (pw) => { await crm.updatePassword(pw); announce("Mot de passe modifié"); }} />}
           {page === "Forfaits" && <PricingView yearly={billingYearly} setYearly={setBillingYearly} currentPlan={crm.subscription?.plan ?? "trial"} onChoose={async (plan) => { try { if (!crm.session) return announce("Connectez-vous avant de choisir un forfait"); await crm.createCheckout(plan, billingYearly ? "yearly" : "monthly"); } catch (error) { announce(error instanceof Error ? error.message : "Stripe n’est pas configuré"); } }} />}

@@ -33,7 +33,14 @@ function BoutonCopier({ texte }: { texte: string }) {
   );
 }
 
-export function PublierReel({ blob, texte, onClose }: { blob: Blob; texte: string; onClose: () => void }) {
+// Ajoute l'invitation à visiter le site si elle manque (le serveur fait la même vérification)
+function avecSite(t: string, plateforme: "instagram" | "facebook") {
+  if (/mohamedelberhdadi\.ca/i.test(t)) return t;
+  const ligne = plateforme === "instagram" ? `👉 Tous mes conseils et outils gratuits : ${SITE} (lien dans la bio)` : `👉 Tous mes conseils et outils gratuits : https://${SITE}`;
+  return `${t.trim()}\n\n${ligne}`;
+}
+
+export function PublierReel({ blob, texte, legendeScript = "", onClose }: { blob: Blob; texte: string; legendeScript?: string; onClose: () => void }) {
   const url = useMemo(() => URL.createObjectURL(blob), [blob]);
   useEffect(() => () => URL.revokeObjectURL(url), [url]);
   const [chargement, setChargement] = useState(true);
@@ -155,6 +162,9 @@ export function PublierReel({ blob, texte, onClose }: { blob: Blob; texte: strin
             {chargement ? <p className="result-count"><Loader2 size={14} className="spin" style={{ verticalAlign: "-2px" }} /> Rédaction du texte de publication…</p> : (
               <>
                 {note && <p className="settings-note">{note}</p>}
+                {legendeScript && !enCours && !fini && (
+                  <div><button type="button" className="trash-action" onClick={() => { setLegIg(avecSite(legendeScript, "instagram")); setLegFb(avecSite(legendeScript.replace(/(^|\s)#\S+/g, "").trim(), "facebook")); }}>Utiliser la légende du script du jour</button></div>
+                )}
                 {ig && <label>Texte Instagram <span className="settings-note">(lien non cliquable : « lien dans la bio »)</span><textarea rows={7} value={legIg} onChange={(e) => setLegIg(e.target.value)} disabled={enCours || fini} /></label>}
                 {fb && <label>Texte Facebook <span className="settings-note">(lien cliquable)</span><textarea rows={6} value={legFb} onChange={(e) => setLegFb(e.target.value)} disabled={enCours || fini} /></label>}
                 <p className="settings-note">Le lien {SITE} est ajouté automatiquement s'il manque dans un texte.</p>

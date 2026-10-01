@@ -16,7 +16,7 @@ type Props = {
 
 type MessageMonteur = { type?: string; blob?: unknown; name?: unknown; texte?: unknown };
 
-export function MonteurReels({ onVideo, onPublier, publication = false, height = "calc(100vh - 190px)" }: Props & { publication?: boolean }) {
+export function MonteurReels({ onVideo, onPublier, publication = false, legendeScript = "", height = "calc(100vh - 190px)" }: Props & { publication?: boolean; legendeScript?: string }) {
   const cadre = useRef<HTMLIFrameElement>(null);
   const [aPublier, setAPublier] = useState<{ blob: Blob; texte: string } | null>(null);
   const publier = onPublier ?? (publication ? (blob: Blob, texte: string) => setAPublier({ blob, texte }) : undefined);
@@ -54,7 +54,7 @@ export function MonteurReels({ onVideo, onPublier, publication = false, height =
 
   return (
     <>
-    {aPublier && <PublierReel blob={aPublier.blob} texte={aPublier.texte} onClose={() => setAPublier(null)} />}
+    {aPublier && <PublierReel blob={aPublier.blob} texte={aPublier.texte} legendeScript={legendeScript} onClose={() => setAPublier(null)} />}
     <iframe
       ref={cadre}
       src={`/monteur/index.html?embed=1${onVideo ? "&save=1" : ""}${publier ? "&publish=1" : ""}`}

@@ -84,6 +84,8 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
   const [erreur, setErreur] = useState("");
   const [prompteur, setPrompteur] = useState(false);
   const [copie, setCopie] = useState("");
+  const [publicChoisi, setPublicChoisi] = useState("");
+  const [typeChoisi, setTypeChoisi] = useState("");
 
   const charger = useCallback(async () => {
     if (!supabase || !connected) { setCharge(false); return; }
@@ -99,7 +101,11 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
     if (!supabase) return;
     setOccupe(true); setErreur("");
     try {
-      const { error } = await supabase.functions.invoke("generate-script", { body: script && script.status === "propose" ? { remplacer: script.id } : {} });
+      const body: Record<string, string> = {};
+      if (script && script.status === "propose") body.remplacer = script.id;
+      if (publicChoisi) body.public = publicChoisi;
+      if (typeChoisi) body.type = typeChoisi;
+      const { error } = await supabase.functions.invoke("generate-script", { body });
       if (error) {
         const ctx = (error as { context?: Response }).context;
         const detail = ctx && typeof ctx.json === "function" ? await ctx.json().catch(() => null) : null;
@@ -133,6 +139,29 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
         <button type="button" className="content-secondary" onClick={autre} disabled={occupe}>
           <RefreshCw size={15} className={occupe ? "spin" : ""} /> {occupe ? "L’IA cherche et écrit… (20-30 s)" : script ? "Autre script" : "Générer un script"}
         </button>
+      </div>
+      <div className="script-choix" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", margin: "6px 0 10px" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Pour qui ?
+          <select value={publicChoisi} onChange={(e) => setPublicChoisi(e.target.value)} disabled={occupe}>
+            <option value="">Au choix de l'IA</option>
+            <option value="acheteurs">Acheteurs</option>
+            <option value="vendeurs">Vendeurs</option>
+            <option value="premiers acheteurs">Premiers acheteurs</option>
+            <option value="nouveaux arrivants">Nouveaux arrivants</option>
+          </select>
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Type
+          <select value={typeChoisi} onChange={(e) => setTypeChoisi(e.target.value)} disabled={occupe}>
+            <option value="">Au choix de l'IA</option>
+            <option value="conseil">Conseil du jour</option>
+            <option value="nouveaute">Nouveauté locale</option>
+          </select>
+        </label>
+        {(publicChoisi || typeChoisi) && (
+          <button type="button" className="content-primary" onClick={autre} disabled={occupe}>
+            <RefreshCw size={15} className={occupe ? "spin" : ""} /> {occupe ? "L’IA écrit… (20-30 s)" : "Générer ce script"}
+          </button>
+        )}
       </div>
       {erreur && <p className="content-message erreur">{erreur}</p>}
       {!script ? (
