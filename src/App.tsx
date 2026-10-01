@@ -6,6 +6,7 @@ import AddressMap from "./AddressMap";
 import { geocoderAdresse, type ResultatGeocodage } from "./lib/geocode";
 import { televerserPhoto, televerserVideo } from "./lib/storage";
 import { chargerFFmpeg, genererVideoPhotos } from "./video/moteur";
+import MonteurAvance from "./MonteurAvance";
 import {
   ArrowLeftFromLine,
   ArrowRight,
@@ -1171,6 +1172,16 @@ function PropertyModal({ contacts, organizationId, initial, onClose, onSave }: {
             <video src={videoUrl} controls style={{ width: "100%", borderRadius: 10, marginTop: 10, maxHeight: 320 }} />
           )}
         </div>
+      )}
+
+      {initial?.id ? (
+        <MonteurAvance
+          organizationId={organizationId}
+          propertyId={initial.id}
+          onVideoPrete={(url) => { setVideoUrl(url); setVideoEtat("pret"); setVideoMessage("Vidéo prête !"); }}
+        />
+      ) : (
+        <p className="settings-note" style={{ marginBottom: 10 }}>Enregistre d'abord la fiche pour pouvoir téléverser une vraie vidéo filmée à faire monter.</p>
       )}
 
       {contacts.length > 0 && <label>Vendeur associé (optionnel)<select name="contactId" defaultValue={initial?.contact_id ?? ""}><option value="">Aucun</option>{contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}

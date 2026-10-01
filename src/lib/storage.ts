@@ -33,3 +33,18 @@ export async function televerserVideo(organizationId: string, blob: Blob): Promi
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(chemin);
   return data.publicUrl;
 }
+
+// Vidéo brute (filmée, pas encore montée) destinée au monteur automatique qui
+// tourne sur l'ordinateur de Mohamed (voir video_jobs). On renvoie le CHEMIN
+// dans le bucket (pas l'URL publique) : le monteur télécharge par ce chemin.
+export async function televerserVideoBrute(organizationId: string, fichier: File): Promise<string> {
+  if (!supabase) throw new Error("Connexion au CRM requise.");
+  const chemin = `${organizationId}/videos-brutes/${nomFichier(fichier.name || "video.mp4")}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(chemin, fichier, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: fichier.type || "video/mp4",
+  });
+  if (error) throw error;
+  return chemin;
+}
