@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Monteur Reels Immo</title>
+<meta name="description" content="Montage automatique de Reels immobiliers dans le navigateur : transcription, sous-titres, graphiques, export MP4 1080×1920.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23B61D0A'/%3E%3Cpath d='M12 9l11 7-11 7z' fill='white'/%3E%3C/svg%3E">
+<style>
+@font-face{font-family:Poppins;font-weight:600;font-display:block;src:url(fonts/poppins-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:Poppins;font-weight:700;font-display:block;src:url(fonts/poppins-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:Poppins;font-weight:800;font-display:block;src:url(fonts/poppins-latin-800-normal.woff2) format("woff2")}
+@font-face{font-family:Anton;font-weight:400;font-display:block;src:url(fonts/anton-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:Montserrat;font-weight:600;font-display:block;src:url(fonts/montserrat-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:Montserrat;font-weight:800;font-display:block;src:url(fonts/montserrat-latin-800-normal.woff2) format("woff2")}
+@font-face{font-family:Montserrat;font-weight:300;font-style:italic;font-display:block;src:url(fonts/montserrat-latin-300-italic.woff2) format("woff2")}
+@font-face{font-family:Playfair;font-weight:900;font-display:block;src:url(fonts/playfair-display-latin-900-normal.woff2) format("woff2")}
+@font-face{font-family:Oswald;font-weight:600;font-display:block;src:url(fonts/oswald-latin-600-normal.woff2) format("woff2")}
+/* Table de montage : étapes en haut, travail au centre */
+:root{
+  --bg:#F5F1EC;--panel:#FFFFFF;--sunk:#EDE7E0;--line:#DDD3C9;--fg:#1C1614;--muted:#6E625B;
+  --accent:#B61D0A;--accent-fg:#fff;--accent-soft:#F6DED8;--ok:#2F7D4A;--ok-soft:#DDF0E3;--warn:#8A5D00;--warn-soft:#FBEFCF;--bad:#B61D0A;--bad-soft:#F6DED8;
+  --f-ui:"Poppins",system-ui,-apple-system,"Segoe UI",sans-serif;--f-d:"Anton",Impact,sans-serif;--r:10px;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#110E0D;--panel:#1A1614;--sunk:#231D1A;--line:#342A26;--fg:#F2ECE7;--muted:#A99D95;--accent:#E0442A;--accent-soft:#3A1A14;--ok:#5CC684;--ok-soft:#173222;--warn:#E6B94A;--warn-soft:#352A10;--bad:#FF6B55;--bad-soft:#3A1A14;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-ui)}
+.wrap{max-width:1320px;margin:0 auto;padding:18px 16px 60px}
+header{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line)}
+h1{font:400 30px/1 var(--f-d);text-transform:uppercase;margin:0;letter-spacing:.5px}
+.sub{color:var(--muted);font-size:13px}
+.steps{display:flex;gap:6px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
+.steps li{font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.steps li.on{background:var(--accent);color:var(--accent-fg)} .steps li.done{background:var(--ok-soft);color:var(--ok)}
+section{padding-top:20px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;min-width:0}
+.panel h2{font:700 12.5px var(--f-ui);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px}
+.grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start}
+.stack{display:flex;flex-direction:column;gap:12px}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--muted)}
+input[type=text],textarea,select{font:14px/1.45 var(--f-ui);color:var(--fg);background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+textarea{resize:vertical;min-height:70px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1 1 140px;min-width:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:600 14px var(--f-ui);padding:9px 14px;border-radius:8px;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:var(--muted)} .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)} .btn.small{padding:5px 9px;font-size:12.5px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.drop{border:2px dashed var(--line);border-radius:12px;padding:34px 16px;text-align:center;background:var(--sunk);cursor:pointer}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop b{display:block;font-size:17px;margin-bottom:4px}
+.checks{display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.chk{display:flex;gap:8px;align-items:flex-start}.chk::before{content:"✓";color:var(--ok);font-weight:800;width:14px;flex:none}
+.chk.bad::before{content:"✕";color:var(--bad)} .chk.warn::before{content:"!";color:var(--warn)}
+.chk small{display:block;color:var(--muted)}
+.bar{height:10px;background:var(--sunk);border-radius:6px;overflow:hidden}.bar>div{height:100%;width:0;background:var(--accent);transition:width .2s}
+.prog{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}.prog .lbl{display:flex;justify-content:space-between;font-size:13.5px;font-weight:600}.prog .lbl span{color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
+.alert{padding:10px 12px;border-radius:8px;font-size:14px;background:var(--bad-soft);border:1px solid var(--bad)} .alert.info{background:var(--warn-soft);border-color:var(--warn)}
+.review{display:grid;grid-template-columns:minmax(0,1fr) 300px minmax(0,420px);gap:16px;align-items:start}
+@media (max-width:1150px){.review{grid-template-columns:minmax(0,1fr) 300px}.review>.ovcol{grid-column:1/-1}}
+@media (max-width:760px){.review{grid-template-columns:minmax(0,1fr)}}
+.tx{max-height:70vh;overflow:auto;line-height:2.1}
+.tx p{margin:0 0 10px}
+.w{border:0;background:transparent;color:var(--fg);font:15px var(--f-ui);padding:1px 3px;border-radius:4px;cursor:pointer}
+.w:hover{background:var(--sunk)} .w.sel{outline:2px solid var(--accent)} .w.del{text-decoration:line-through;color:var(--muted);opacity:.6}
+.w.hl{background:#B61D0A;color:#fff} .w.mk{box-shadow:inset 0 -3px 0 var(--accent)} .w.empty{display:none}
+.edit{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding-top:10px;margin-top:6px}
+.preview{display:flex;flex-direction:column;gap:10px;align-items:center;position:sticky;top:10px}
+.phone{width:270px;max-width:100%;aspect-ratio:9/16;border-radius:18px;overflow:hidden;border:5px solid var(--fg);background:#000}
+.phone canvas{width:100%;height:100%;display:block}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.tc{font:600 12px ui-monospace,Menlo,monospace;color:var(--muted)}
+.ev{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.ev.off{opacity:.5}
+.ev .hd{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.tag{font:700 10.5px var(--f-ui);letter-spacing:.06em;text-transform:uppercase;padding:4px 7px;border-radius:4px;background:var(--fg);color:var(--bg)}
+.tag.statRouge,.tag.montant,.tag.statBlanc{background:#B61D0A;color:#fff}.tag.list,.tag.section{background:#7A1410;color:#fff}.tag.cta{background:#1F7A55;color:#fff}.tag.highlight{background:#9A4A00;color:#fff}.tag.name{background:#2D6A8E;color:#fff}
+.ovlist{display:flex;flex-direction:column;gap:10px;max-height:62vh;overflow:auto;padding-right:4px}
+.valid{display:flex;flex-direction:column;gap:8px;font-size:14px}.valid label{display:flex;gap:8px;align-items:flex-start;cursor:pointer}.valid input{accent-color:var(--accent);width:17px;height:17px;margin-top:3px}
+.result{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:700px){.result{grid-template-columns:1fr}}
+.result video{width:300px;max-width:100%;aspect-ratio:9/16;background:#000;border-radius:14px}
+.hint{font-size:12.5px;color:var(--muted)}
+.dict{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow:auto;font-size:13px}
+.dict div{display:flex;justify-content:space-between;gap:6px;align-items:center;padding:3px 6px;background:var(--sunk);border-radius:6px}
+details summary{cursor:pointer;font-weight:600;font-size:13.5px}
+[hidden]{display:none!important}
+body.embed .wrap{padding-top:8px}body.embed header .sub{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>Monteur Reels Immo</h1><div class="sub">Montage automatique dans votre navigateur. Vos vidéos ne quittent jamais votre ordinateur.</div></div>
+    <ol class="steps" id="steps"><li data-s="1">1. Vidéo</li><li data-s="2">2. Analyse</li><li data-s="3">3. Révision</li><li data-s="4">4. Export</li></ol>
+  </header>
+  <div id="globalErr" class="alert" role="alert" hidden style="margin-top:14px"></div>
+
+  <!-- 1. VIDEO -->
+  <section id="s1">
+    <div class="grid">
+      <div class="panel stack">
+        <h2>Votre vidéo brute</h2>
+        <label class="drop" id="drop" for="file"><b>Déposez la vidéo ici</b><span class="hint">ou cliquez pour choisir · MP4 ou MOV · idéalement filmée à la verticale, 2 min maximum</span></label>
+        <input type="file" id="file" accept="video/mp4,video/quicktime,.mp4,.mov,.m4v" hidden>
+        <div id="fileInfo" class="hint"></div>
+        <label class="f">Sujet de la vidéo (pour le nom du fichier)<input type="text" id="subject" placeholder="ex. Parc Fabreville"></label>
+        <label class="f">Précision de la transcription
+          <select id="model"><option value="Xenova/whisper-small">Précise (recommandée, 250 Mo au 1er usage)</option><option value="Xenova/whisper-base">Rapide (80 Mo au 1er usage)</option></select></label>
+        <button class="btn primary" id="go" disabled>Analyser la vidéo</button>
+      </div>
+      <div class="panel stack">
+        <h2>Votre profil (affiché dans la vidéo)</h2>
+        <label class="f">Nom<input type="text" id="pName" placeholder="ex. Mohamed Elberdadi"></label>
+        <label class="f">Titre<input type="text" id="pTitle" value="Courtier immobilier"></label>
+        <label class="f">Région<input type="text" id="pRegion" placeholder="ex. Laval · Rive-Nord"></label>
+        <p class="hint">Le nom remplace automatiquement celui entendu par la transcription quand vous dites « Moi c'est… ».</p>
+      </div>
+      <div class="panel stack">
+        <h2>Compatibilité de cet ordinateur</h2>
+        <div class="checks" id="checks"><div class="chk warn">Vérification…</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. ANALYSE -->
+  <section id="s2" hidden>
+    <div class="panel" style="max-width:640px">
+      <h2>Analyse en cours</h2>
+      <div class="prog"><div class="lbl">Lecture de la vidéo <span id="p1t"></span></div><div class="bar"><div id="p1"></div></div></div>
+      <div class="prog"><div class="lbl">Transcription de la voix <span id="p2t"></span></div><div class="bar"><div id="p2"></div></div></div>
+      <div class="prog"><div class="lbl">Suivi du visage <span id="p3t"></span></div><div class="bar"><div id="p3"></div></div></div>
+      <p class="hint">Gardez cet onglet ouvert. Le premier usage télécharge le modèle de transcription (une seule fois).</p>
+    </div>
+  </section>
+
+  <!-- 3. REVISION -->
+  <section id="s3" hidden>
+    <div class="review">
+      <div class="panel">
+        <h2>Texte (cliquez sur un mot pour le corriger)</h2>
+        <div class="tx" id="tx"></div>
+        <div class="edit" id="edit" hidden>
+          <div class="row" style="align-items:flex-end">
+            <label class="f" style="flex:2 1 180px">Mot sélectionné<input type="text" id="eWord"></label>
+            <button class="btn small" id="eDel">Couper ce mot</button>
+            <button class="btn small" id="eHl">Surligner en rouge</button>
+            <button class="btn small" id="eHlNext" hidden>+ mot suivant</button>
+          </div>
+          <p class="hint" style="margin:6px 0 0">Entrée pour valider. « Couper » retire aussi le passage de la vidéo.</p>
+        </div>
+        <details style="margin-top:12px"><summary>Corrections automatiques (dictionnaire)</summary>
+          <div class="stack" style="margin-top:8px">
+            <div class="dict" id="dict"></div>
+            <div class="row"><input type="text" id="dFrom" placeholder="mot entendu (ex. nondière)"><input type="text" id="dTo" placeholder="correction (ex. Lanaudière)"><button class="btn small" id="dAdd" style="flex:0 0 auto">Ajouter et appliquer</button></div>
+          </div>
+        </details>
+      </div>
+      <div class="preview">
+        <div class="phone"><canvas id="pv" width="540" height="960" aria-label="Aperçu"></canvas></div>
+        <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Position dans la vidéo">
+        <div class="row" style="width:270px;align-items:center"><button class="btn small" id="play">Lire</button><span class="tc" id="tcode">0:00 / 0:00</span></div>
+        <label class="f" style="width:270px">Cadrage<select id="framing"><option value="0.9">Plus large</option><option value="1" selected>Automatique</option><option value="1.12">Plus serré</option></select></label>
+      </div>
+      <div class="panel ovcol stack">
+        <h2>Graphiques à l'écran</h2>
+        <div class="ovlist" id="ovlist"></div>
+        <div class="valid" id="valid">
+          <strong style="font-size:13.5px">Avant l'export, je confirme :</strong>
+          <label><input type="checkbox" class="vc"> J'ai relu tous les sous-titres dans l'aperçu.</label>
+          <label><input type="checkbox" class="vc"> Les chiffres et montants sont exacts.</label>
+          <label><input type="checkbox" class="vc"> Les noms, lieux et l'appel à l'action sont bien écrits.</label>
+        </div>
+        <button class="btn primary" id="renderBtn" disabled>Exporter la vidéo MP4</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. EXPORT -->
+  <section id="s4" hidden>
+    <div class="panel" id="renderPanel" style="max-width:640px">
+      <h2>Export</h2>
+      <div class="prog"><div class="lbl"><span id="r1l" style="color:inherit;font-weight:600">Rendu</span><span id="r1t"></span></div><div class="bar"><div id="r1"></div></div></div>
+      <p class="hint">Gardez cet onglet ouvert et au premier plan. Durée : environ 1 à 3 fois la longueur de la vidéo.</p>
+      <button class="btn" id="cancel">Annuler</button>
+    </div>
+    <div class="panel result" id="resultPanel" hidden>
+      <video id="out" controls playsinline></video>
+      <div class="stack">
+        <h2>Vidéo prête</h2>
+        <div id="outInfo" class="hint"></div>
+        <div class="row" style="flex:0 0 auto"><a class="btn primary" id="dl" download>Télécharger la vidéo</a><a class="btn" id="dlSrt" download>Télécharger les sous-titres (.srt)</a></div>
+        <button class="btn primary" id="saveCrm" hidden>Enregistrer dans le CRM</button>
+        <div id="saveMsg" class="hint" role="status"></div>
+        <button class="btn" id="back">Revenir à la révision</button>
+        <button class="btn" id="restart">Monter une autre vidéo</button>
+      </div>
+    </div>
+  </section>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

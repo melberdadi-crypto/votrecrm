@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { type InternationalPropertyInput, type PropertyRow, type TeamMemberRow, useCrmData } from "./lib/useCrmData";
 import { ContentView } from "./ContentView";
-import { VideoStudio } from "./video/VideoStudio";
+import { MonteurReels, FenetreMonteur } from "./video/MonteurReels";
 import AddressMap from "./AddressMap";
 import { geocoderAdresse, type ResultatGeocodage } from "./lib/geocode";
 import { televerserPhoto, televerserVideo } from "./lib/storage";
 import { chargerFFmpeg, genererVideoPhotos } from "./video/moteur";
-import MonteurAvance from "./MonteurAvance";
 import {
   ArrowLeftFromLine,
   ArrowRight,
@@ -361,7 +360,7 @@ function App() {
             <div>
               <p className="eyebrow">{today}</p>
               <h1>{page === "Aperçu" ? <>Bonjour {(crm.session?.user.user_metadata.full_name ?? "Camille Moreau").split(" ")[0]}, <em>prêt(e) à conclure ?</em></> : page}</h1>
-              <p>{page === "Aperçu" ? "Voici ce qui mérite votre attention aujourd’hui." : page === "Studio vidéo" ? "Filmez, l’IA monte : sous-titres professionnels, silences coupés, musique et carton de fin. Publiez en Reel en un clic." : page === "Contenu" ? "Chaque matin, une idée de publication prête pour Instagram et Facebook. Vous validez, c’est publié." : `Gérez vos ${page.toLowerCase()} depuis un seul espace.`}</p>
+              <p>{page === "Aperçu" ? "Voici ce qui mérite votre attention aujourd’hui." : page === "Studio vidéo" ? "Filmez, le monteur fait le reste : silences coupés, sous-titres, chiffres et graphiques animés, son réglé. Tout se passe dans votre navigateur, sans frais." : page === "Contenu" ? "Chaque matin, une idée de publication prête pour Instagram et Facebook. Vous validez, c’est publié." : `Gérez vos ${page.toLowerCase()} depuis un seul espace.`}</p>
             </div>
             {page !== "Aperçu" && page !== "Contenu" && page !== "Studio vidéo" && <button className="outline-action" onClick={() => page === "Pipeline" ? setDealModalOpen(true) : setModalOpen(true)}><Plus size={17} /> Ajouter</button>}
           </div>
@@ -438,7 +437,7 @@ function App() {
             } catch (error) { announce(error instanceof Error ? error.message : "Suppression impossible"); }
           }} />}
           {page === "Équipe" && <TeamView members={crm.session ? crm.teamMembers : []} organizationId={crm.session ? crm.organizationId : null} onAnnounce={announce} onRemove={async (id) => { try { await crm.removeTeamMember(id); announce("Membre retiré de l’équipe"); } catch (error) { announce(error instanceof Error ? error.message : "Action impossible"); } }} onRestore={async (id) => { try { await crm.restoreTeamMember(id); announce("Membre restauré"); } catch (error) { announce(error instanceof Error ? error.message : "Action impossible"); } }} onDeleteForever={async (id) => { try { await crm.deleteTeamMemberForever(id); announce("Membre supprimé définitivement"); } catch (error) { announce(error instanceof Error ? error.message : "Action impossible"); } }} onEmptyTrash={async () => { try { await crm.emptyTeamTrash(); announce("Corbeille de l’équipe vidée"); } catch (error) { announce(error instanceof Error ? error.message : "Action impossible"); } }} />}
-          {page === "Studio vidéo" && <VideoStudio connected={Boolean(crm.session)} announce={announce} />}
+          {page === "Studio vidéo" && <MonteurReels onVideo={crm.session && crm.organizationId ? async (blob) => { const url = await televerserVideo(crm.organizationId as string, blob); announce("Vidéo enregistrée dans le CRM"); try { await navigator.clipboard.writeText(url); } catch { /* lien non copié */ } } : undefined} />}
           {page === "Contenu" && <ContentView connected={Boolean(crm.session)} announce={announce} />}
           {page === "Paramètres" && <SettingsView industry={crm.industry} canChangePassword={Boolean(crm.session)} onChangePassword={async (pw) => { await crm.updatePassword(pw); announce("Mot de passe modifié"); }} />}
           {page === "Forfaits" && <PricingView yearly={billingYearly} setYearly={setBillingYearly} currentPlan={crm.subscription?.plan ?? "trial"} onChoose={async (plan) => { try { if (!crm.session) return announce("Connectez-vous avant de choisir un forfait"); await crm.createCheckout(plan, billingYearly ? "yearly" : "monthly"); } catch (error) { announce(error instanceof Error ? error.message : "Stripe n’est pas configuré"); } }} />}
@@ -983,6 +982,7 @@ function PropertyModal({ contacts, organizationId, initial, onClose, onSave }: {
   const [videoUrl, setVideoUrl] = useState<string | null>(initial?.video_url ?? null);
   const [videoEtat, setVideoEtat] = useState<"idle" | "montage" | "televersement" | "pret" | "erreur">(initial?.video_url ? "pret" : "idle");
   const [videoProgres, setVideoProgres] = useState(0);
+  const [monteurOuvert, setMonteurOuvert] = useState(false);
   const [videoMessage, setVideoMessage] = useState("");
   const [geoErreur, setGeoErreur] = useState("");
   const [adresseLocalisee, setAdresseLocalisee] = useState(adresse);
@@ -1174,14 +1174,25 @@ function PropertyModal({ contacts, organizationId, initial, onClose, onSave }: {
         </div>
       )}
 
-      {initial?.id ? (
-        <MonteurAvance
-          organizationId={organizationId}
-          propertyId={initial.id}
-          onVideoPrete={(url) => { setVideoUrl(url); setVideoEtat("pret"); setVideoMessage("Vidéo prête !"); }}
+      {organizationId && (
+        <div style={{ border: "1px solid var(--border, #e5e7eb)", borderRadius: 10, padding: 12, marginTop: 4, marginBottom: 10 }}>
+          <label className="consent" style={{ marginBottom: 8 }}>
+            <span><Clapperboard size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />Reel à partir d'une vraie vidéo filmée</span>
+          </label>
+          <p className="settings-note" style={{ marginTop: -4, marginBottom: 8 }}>
+            Sous-titres animés, chiffres, listes et appel à l'action, montés directement dans ton navigateur (Chrome ou Edge). Tu relis tout avant l'export, puis « Enregistrer dans le CRM » ajoute la vidéo à cette fiche.
+          </p>
+          <button type="button" className="trash-action" onClick={() => setMonteurOuvert(true)}><Clapperboard size={13} /> Ouvrir le monteur</button>
+        </div>
+      )}
+      {monteurOuvert && organizationId && (
+        <FenetreMonteur
+          onClose={() => setMonteurOuvert(false)}
+          onVideo={async (blob) => {
+            const url = await televerserVideo(organizationId, blob);
+            setVideoUrl(url); setVideoEtat("pret"); setVideoMessage("Vidéo prête !");
+          }}
         />
-      ) : (
-        <p className="settings-note" style={{ marginBottom: 10 }}>Enregistre d'abord la fiche pour pouvoir téléverser une vraie vidéo filmée à faire monter.</p>
       )}
 
       {contacts.length > 0 && <label>Vendeur associé (optionnel)<select name="contactId" defaultValue={initial?.contact_id ?? ""}><option value="">Aucun</option>{contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}

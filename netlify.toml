@@ -9,3 +9,30 @@
   from = "/*"
   to = "/index.html"
   status = 200
+# Monteur Reels (montage dans le navigateur) : en-têtes nécessaires
+[[headers]]
+  for = "/monteur/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Embedder-Policy = "credentialless"
+    X-Content-Type-Options = "nosniff"
+
+[[headers]]
+  for = "/monteur/*.mjs"
+  [headers.values]
+    Content-Type = "text/javascript; charset=utf-8"
+
+[[headers]]
+  for = "/monteur/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+
+[[headers]]
+  for = "/ffmpeg/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+
+[[headers]]
+  for = "/monteur/vendor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

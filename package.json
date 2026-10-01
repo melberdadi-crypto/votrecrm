@@ -4,18 +4,20 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build --outDir dist",
+    "dev": "node scripts/monteur-vendor.mjs && vite --host 0.0.0.0",
+    "build": "node scripts/monteur-vendor.mjs && tsc -b && vite build --outDir dist",
     "test": "vitest run",
     "lint": "bunx tsc --noEmit && bunx biome lint --write",
     "format": "bunx biome format --write",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "monteur:vendor": "node scripts/monteur-vendor.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@hookform/resolvers": "^3.10.0",
+    "@huggingface/transformers": "4.3.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",

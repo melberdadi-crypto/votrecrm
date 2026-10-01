@@ -25,3 +25,6 @@ dist-ssr
 
 # TypeScript build cache
 tsconfig.tsbuildinfo
+
+# Monteur Reels : copiés depuis node_modules au build (scripts/monteur-vendor.mjs)
+public/monteur/vendor/transformers/
