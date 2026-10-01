@@ -286,7 +286,7 @@ $("#renderBtn").addEventListener("click", async () => {
     $("#dlSrt").href = URL.createObjectURL(new Blob([srt(st.plan)], { type: "text/plain" })); $("#dlSrt").download = name.replace(/_9x16\.mp4$/, ".srt");
     $("#outInfo").textContent = `${name} · ${fmt(st.plan.dur)} · 1080×1920 · 30 i/s · ${(blob.size / 1e6).toFixed(1)} Mo · son ${audio.lufsOut.toFixed(1)} LUFS`;
     $("#renderPanel").hidden = true; $("#resultPanel").hidden = false;
-    st.lastBlob = blob; st.lastName = name; $("#saveCrm").hidden = !(EMBED && Q.has("save")); $("#saveCrm").disabled = false; $("#saveMsg").textContent = "";
+    st.lastBlob = blob; st.lastName = name; $("#saveCrm").hidden = !(EMBED && Q.has("save")); $("#pubCrm").hidden = !(EMBED && Q.has("publish")); $("#pubCrm").disabled = false; $("#saveCrm").disabled = false; $("#saveMsg").textContent = "";
   } catch (e) { showErr(e); showStep(3); }
   finally { st.busy = false; }
 });
@@ -294,6 +294,12 @@ $("#cancel").addEventListener("click", () => st.abort && st.abort.abort());
 $("#back").addEventListener("click", () => { showStep(3); previewAt(st.pt || 0); });
 $("#restart").addEventListener("click", () => location.reload());
 // Intégration au CRM : la vidéo finie est transmise à la page parente (même origine), qui l'enregistre.
+$("#pubCrm").addEventListener("click", () => {
+  if (!EMBED || !st.lastBlob) return;
+  const texte = st.plan ? st.plan.words.filter(w => !w.del && w.w).map(w => w.w).join(" ") : "";
+  window.parent.postMessage({ type: "monteur:publier", blob: st.lastBlob, name: st.lastName, texte, duration: st.plan ? st.plan.dur : null }, location.origin);
+  $("#saveMsg").textContent = "Fenêtre de publication ouverte dans le CRM.";
+});
 $("#saveCrm").addEventListener("click", () => {
   if (!EMBED || !st.lastBlob) return;
   $("#saveCrm").disabled = true; $("#saveMsg").textContent = "Envoi au CRM…";

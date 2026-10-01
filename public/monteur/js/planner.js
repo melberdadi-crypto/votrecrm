@@ -7,7 +7,7 @@ export const DEFAULT_DICT = [
   ["nondière", "Lanaudière"], ["négements", "déneigement"], ["pâti noire", "patinoire"], ["était comme hiver", "été comme hiver"],
   ["second cousteau", "Séguin-Cousteau"], ["seconde costaud", "Séguin-Cousteau"], ["molly cool", "Molly-Kool"],
   ["centris", "Centris"], ["laval", "Laval"], ["fabreville", "Fabreville"], ["sainte-rose", "Sainte-Rose"],
-  ["chomedey", "Chomedey"], ["vous magasiner", "vous magasinez"], ["capitaine molly cool", "Capitaine-Molly-Kool"], ["fabreville ouest", "Fabreville-Ouest"],
+  ["chomedey", "Chomedey"], ["vous magasiner", "vous magasinez"], ["albert dedi", "El Berhdadi"], ["el berdadi", "El Berhdadi"], ["elberdadi", "El Berhdadi"], ["el berhdadi", "El Berhdadi"], ["capitaine molly cool", "Capitaine-Molly-Kool"], ["fabreville ouest", "Fabreville-Ouest"],
   ["s'engiez", "songez à"], ["sangez d'éménager", "songez à déménager"], ["s'engiez déménager", "songez à déménager"], ["pâti noire réfrigérée", "patinoire réfrigérée"], ["un cours commentaire", "un court commentaire"], ["hypothèque", "hypothèque"], ["vimont", "Vimont"], ["auteuil", "Auteuil"], ["terrebonne", "Terrebonne"],
   ["mascouche", "Mascouche"], ["blainville", "Blainville"], ["boisbriand", "Boisbriand"], ["mirabel", "Mirabel"]
 ];

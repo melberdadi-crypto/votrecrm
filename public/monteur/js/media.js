@@ -257,7 +257,9 @@ export async function render({ meta, face, plan, audio, support, onProgress, sig
     audio: useAudioEnc ? { codec: support.acodec === "opus" ? "opus" : "aac", numberOfChannels: 2, sampleRate: 48000 } : undefined });
   let encErr = null;
   const venc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { encErr = e; } });
-  venc.configure({ codec: support.vcodec, width: W, height: H, bitrate: 12_000_000, framerate: 30, latencyMode: "quality", ...(vIsAvc ? { avc: { format: "avc" } } : {}) });
+  // Débit adapté pour rester sous ~45 Mo (limite de 50 Mo du stockage et des publications)
+  const bitrate = Math.round(Math.max(3_000_000, Math.min(12_000_000, (45e6 * 8) / Math.max(1, plan.dur) - 200_000)));
+  venc.configure({ codec: support.vcodec, width: W, height: H, bitrate, framerate: 30, latencyMode: "quality", ...(vIsAvc ? { avc: { format: "avc" } } : {}) });
 
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const ctx = cv.getContext("2d", { alpha: false });
   const N = Math.round(plan.dur * 30); let i = 0; let held = null, heldT = -1;
