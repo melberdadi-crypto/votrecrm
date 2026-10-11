@@ -1,7 +1,8 @@
 // Script de Reel du jour : généré chaque matin (pg_cron) ou à la demande (« Autre script ») par le propriétaire.
-// Le propriétaire peut choisir le public (acheteurs, vendeurs, premiers acheteurs, nouveaux arrivants) et le type (conseil, nouveauté locale).
+// Deux marchés : le Québec (Laval, Rive-Nord, Lanaudière) et le Maroc (Casablanca, Marrakech, El Jadida, Mohammedia, Rabat, Tanger).
+// Le propriétaire peut choisir le marché, le public (acheteurs, vendeurs, premiers acheteurs, nouveaux arrivants) et le type (conseil, nouveauté locale).
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { choisirSujet, genererScript, PUBLICS } from "./script.ts";
+import { choisirSujet, estMarche, genererScript, MARCHES, type Marche, publicsDe, TEL_MAROC } from "./script.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -24,16 +25,19 @@ async function secret(admin: ReturnType<typeof createClient>, name: string) {
 }
 
 type Choix = { publicCible?: string; type?: string };
+type Reglages = { organization_id: string; signature: string | null; signature_maroc: string | null };
+const signatureDe = (r: Reglages, marche: Marche) =>
+  (marche === "maroc" ? r.signature_maroc || `Mohamed El Berhdadi · Immobilier au Maroc · WhatsApp / Tél. : ${TEL_MAROC}` : r.signature) || "";
 
-async function creerScript(admin: ReturnType<typeof createClient>, orgId: string, signature: string, decalage = 0, choix: Choix = {}) {
+async function creerScript(admin: ReturnType<typeof createClient>, orgId: string, signature: string, decalage = 0, choix: Choix = {}, marche: Marche = "quebec") {
   const { data: recents } = await admin.from("reel_scripts").select("ville, public_cible, type, titre")
-    .eq("organization_id", orgId).order("created_at", { ascending: false }).limit(30);
-  const sujet = choisirSujet(recents || [], numeroJour() + decalage);
+    .eq("organization_id", orgId).eq("marche", marche).order("created_at", { ascending: false }).limit(30);
+  const sujet = choisirSujet(recents || [], numeroJour() + decalage, marche);
   if (choix.publicCible) sujet.publicCible = choix.publicCible;
   if (choix.type) sujet.type = choix.type;
-  const s = await genererScript(await secret(admin, "anthropic_api_key"), sujet, signature, (recents || []).map((r) => r.titre).filter(Boolean));
+  const s = await genererScript(await secret(admin, "anthropic_api_key"), sujet, signature, (recents || []).map((r) => r.titre).filter(Boolean), marche);
   const { data, error } = await admin.from("reel_scripts").insert({
-    organization_id: orgId, script_date: today(), ville: sujet.ville, public_cible: sujet.publicCible, type: sujet.type,
+    organization_id: orgId, marche, script_date: today(), ville: sujet.ville, public_cible: sujet.publicCible, type: sujet.type,
     titre: s.titre, accroche: s.accroche, parties: s.parties, duree_secondes: s.duree_secondes,
     conseils_tournage: s.conseils_tournage, legende: s.legende, sources: s.sources,
   }).select().single();
@@ -45,21 +49,26 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
   try {
+    const body = await req.json().catch(() => ({}));
     const cronHeader = req.headers.get("x-cron-secret");
     if (cronHeader) {
       if (cronHeader !== (await secret(admin, "content_cron_secret"))) return json({ error: "Non autorisé" }, 401);
-      const { data: orgs } = await admin.from("content_settings").select("organization_id, signature").eq("enabled", true);
+      // Un script par marché chaque matin (ou seulement ceux de body.marches)
+      const marches = Array.isArray(body.marches) ? MARCHES.filter((m) => body.marches.includes(m)) : MARCHES;
+      const { data: orgs } = await admin.from("content_settings").select("organization_id, signature, signature_maroc").eq("enabled", true);
       const resultats = [];
-      for (const org of orgs || []) {
-        const { data: existant } = await admin.from("reel_scripts").select("id")
-          .eq("organization_id", org.organization_id).eq("script_date", today()).neq("status", "refuse").limit(1);
-        if (existant?.length) { resultats.push({ org: org.organization_id, statut: "déjà généré" }); continue; }
-        try {
-          const s = await creerScript(admin, org.organization_id, org.signature || "");
-          resultats.push({ org: org.organization_id, statut: "généré", id: s.id, ville: s.ville });
-        } catch (err) {
-          console.error("Script impossible :", String(err));
-          resultats.push({ org: org.organization_id, statut: "erreur", erreur: String(err) });
+      for (const org of (orgs || []) as Reglages[]) {
+        for (const marche of marches) {
+          const { data: existant } = await admin.from("reel_scripts").select("id")
+            .eq("organization_id", org.organization_id).eq("marche", marche).eq("script_date", today()).neq("status", "refuse").limit(1);
+          if (existant?.length) { resultats.push({ org: org.organization_id, marche, statut: "déjà généré" }); continue; }
+          try {
+            const s = await creerScript(admin, org.organization_id, signatureDe(org, marche), 0, {}, marche);
+            resultats.push({ org: org.organization_id, marche, statut: "généré", id: s.id, ville: s.ville });
+          } catch (err) {
+            console.error(`Script impossible (${marche}) :`, String(err));
+            resultats.push({ org: org.organization_id, marche, statut: "erreur", erreur: String(err) });
+          }
         }
       }
       return json({ resultats });
@@ -67,19 +76,19 @@ Deno.serve(async (req) => {
 
     // Propriétaire de l'agence (RLS)
     const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: req.headers.get("Authorization") || "" } } });
-    const { data: reglages } = await userClient.from("content_settings").select("organization_id, signature").maybeSingle();
+    const { data: reglages } = await userClient.from("content_settings").select("organization_id, signature, signature_maroc").maybeSingle();
     if (!reglages) return json({ error: "Réservé au propriétaire de l'agence" }, 403);
-    const body = await req.json().catch(() => ({}));
+    const marche: Marche = estMarche(body.marche) ? body.marche : "quebec";
     if (body.remplacer) {
       await admin.from("reel_scripts").update({ status: "refuse" })
         .eq("id", body.remplacer).eq("organization_id", reglages.organization_id).eq("status", "propose");
     }
     const choix: Choix = {};
-    if (typeof body.public === "string" && PUBLICS.includes(body.public)) choix.publicCible = body.public;
+    if (typeof body.public === "string" && publicsDe(marche).includes(body.public)) choix.publicCible = body.public;
     if (body.type === "conseil" || body.type === "nouveaute") choix.type = body.type;
     // « Autre script » sans choix : on décale la rotation pour changer de public et de type
     const decalage = body.remplacer && !choix.publicCible && !choix.type ? Math.floor(Math.random() * 3) + 1 : 0;
-    const script = await creerScript(admin, reglages.organization_id, reglages.signature || "", decalage, choix);
+    const script = await creerScript(admin, reglages.organization_id, signatureDe(reglages as Reglages, marche), decalage, choix, marche);
     return json({ script });
   } catch (err) {
     console.error(err);
