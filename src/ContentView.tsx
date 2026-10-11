@@ -2,8 +2,23 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, Download, Instagram, Facebook, RefreshCw, Send, Sparkles } from "lucide-react";
 import { supabase } from "./lib/supabase";
 
+export type Marche = "quebec" | "maroc";
+const MARCHES: { id: Marche; nom: string }[] = [{ id: "quebec", nom: "Québec" }, { id: "maroc", nom: "Maroc" }];
+
+// Choix du marché : Québec (Laval et environs) ou Maroc (Casablanca, Marrakech, El Jadida, Mohammedia, Rabat, Tanger)
+export function ChoixMarche({ marche, onChange, disabled }: { marche: Marche; onChange: (m: Marche) => void; disabled?: boolean }) {
+  return (
+    <div className="marche-choix" role="group" aria-label="Marché">
+      {MARCHES.map((m) => (
+        <button key={m.id} type="button" className={marche === m.id ? "actif" : ""} aria-pressed={marche === m.id} disabled={disabled} onClick={() => onChange(m.id)}>{m.nom}</button>
+      ))}
+    </div>
+  );
+}
+
 type ContentPost = {
   id: string;
+  marche: Marche;
   post_date: string;
   theme: string | null;
   kicker: string | null;
@@ -69,6 +84,7 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
   const [message, setMessage] = useState<{ type: "ok" | "erreur"; text: string } | null>(null);
   const [texteIg, setTexteIg] = useState("");
   const [texteFb, setTexteFb] = useState("");
+  const [marche, setMarche] = useState<Marche>("quebec");
 
   const load = useCallback(async () => {
     if (!supabase || !connected) { setLoading(false); return; }
@@ -78,18 +94,21 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
       supabase.from("content_posts").select("*").order("post_date", { ascending: false }).order("created_at", { ascending: false }).limit(40),
     ]);
     setAllowed(Boolean(settings));
-    const list = (data || []) as ContentPost[];
-    setPosts(list);
-    const current = list.find((p) => p.status === "proposee" || p.status === "erreur");
-    setTexteIg(current?.texte_instagram || "");
-    setTexteFb(current?.texte_facebook || "");
+    setPosts(((data || []) as ContentPost[]).map((p) => ({ ...p, marche: p.marche || "quebec" })));
     setLoading(false);
   }, [connected]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const current = posts.find((p) => p.status === "proposee" || p.status === "erreur");
-  const historique = posts.filter((p) => p.status === "publiee" || (p.status === "refusee" && p !== current)).slice(0, 12);
+  const duMarche = posts.filter((p) => p.marche === marche);
+  const current = duMarche.find((p) => p.status === "proposee" || p.status === "erreur");
+  const historique = duMarche.filter((p) => p.status === "publiee" || (p.status === "refusee" && p !== current)).slice(0, 12);
+
+  // Les zones de texte suivent l'idée affichée (changement de marché, nouvelle idée)
+  useEffect(() => {
+    setTexteIg(current?.texte_instagram || "");
+    setTexteFb(current?.texte_facebook || "");
+  }, [current?.id, current?.texte_instagram, current?.texte_facebook]);
 
   const publier = async () => {
     if (!current) return;
@@ -117,7 +136,7 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
   const generer = async () => {
     setBusy("generer"); setMessage(null);
     try {
-      await invoke("generate-content", current && current.status === "proposee" ? { remplacer: current.id } : {});
+      await invoke("generate-content", { marche, ...(current && current.status === "proposee" ? { remplacer: current.id } : {}) });
       announce("Nouvelle idée prête");
       await load();
     } catch (err) {
@@ -138,10 +157,14 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
   }
 
   // Dernière publication réussie (pour garder le téléchargement disponible après une publication Facebook manuelle)
-  const dernierePubliee = posts.find((p) => p.status === "publiee");
+  const dernierePubliee = duMarche.find((p) => p.status === "publiee");
 
   return (
     <div className="content-studio">
+      <div className="marche-barre">
+        <ChoixMarche marche={marche} onChange={(m) => { setMarche(m); setMessage(null); }} disabled={Boolean(busy)} />
+        <span>{marche === "maroc" ? "Achat et vente à Casablanca, Marrakech, El Jadida, Mohammedia, Rabat et Tanger · numéro affiché : +212 664 908 900" : "Laval, Rive-Nord et Lanaudière"}</span>
+      </div>
       {message && <p className={`content-message ${message.type}`} role="status">{message.text}</p>}
 
       {current ? (
@@ -186,8 +209,8 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
       ) : (
         <section className="panel settings-panel content-empty">
           <Sparkles size={22} />
-          <h2>Aucune idée en attente</h2>
-          <p>Une nouvelle idée de publication arrive chaque matin vers 6 h. Vous pouvez aussi en demander une maintenant.</p>
+          <h2>Aucune idée en attente{marche === "maroc" ? " pour le Maroc" : ""}</h2>
+          <p>Une nouvelle idée de publication arrive chaque matin vers 6 h pour chaque marché. Vous pouvez aussi en demander une maintenant.</p>
           <button type="button" className="content-primary" disabled={Boolean(busy)} onClick={generer}>
             <Sparkles size={15} /> {busy === "generer" ? "L’IA prépare une idée…" : "Générer une idée maintenant"}
           </button>

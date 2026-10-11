@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, ExternalLink, MapPin, MonitorPlay, RefreshCw, Users, Video, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { ChoixMarche, type Marche } from "../ContentView";
+
+const PUBLICS: Record<Marche, string[]> = {
+  quebec: ["acheteurs", "vendeurs", "premiers acheteurs", "nouveaux arrivants"],
+  maroc: ["acheteurs", "vendeurs", "Marocains du monde (MRE)", "premiers acheteurs"],
+};
+const majuscule = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export type ReelScript = {
   id: string;
+  marche?: Marche;
   script_date: string;
   ville: string;
   public_cible: string;
@@ -86,14 +94,15 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
   const [copie, setCopie] = useState("");
   const [publicChoisi, setPublicChoisi] = useState("");
   const [typeChoisi, setTypeChoisi] = useState("");
+  const [marche, setMarche] = useState<Marche>("quebec");
 
   const charger = useCallback(async () => {
     if (!supabase || !connected) { setCharge(false); return; }
-    const { data } = await supabase.from("reel_scripts").select("*").neq("status", "refuse")
+    const { data } = await supabase.from("reel_scripts").select("*").eq("marche", marche).neq("status", "refuse")
       .order("script_date", { ascending: false }).order("created_at", { ascending: false }).limit(1);
     const s = (data?.[0] as ReelScript) || null;
     setScript(s); onScript?.(s); setCharge(false);
-  }, [connected, onScript]);
+  }, [connected, onScript, marche]);
 
   useEffect(() => { void charger(); }, [charger]);
 
@@ -101,7 +110,7 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
     if (!supabase) return;
     setOccupe(true); setErreur("");
     try {
-      const body: Record<string, string> = {};
+      const body: Record<string, string> = { marche };
       if (script && script.status === "propose") body.remplacer = script.id;
       if (publicChoisi) body.public = publicChoisi;
       if (typeChoisi) body.type = typeChoisi;
@@ -136,6 +145,7 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
     <section className="panel settings-panel script-jour">
       <div className="script-entete">
         <div className="studio-step"><span><Video size={13} /></span><h2>Script du jour</h2></div>
+        <ChoixMarche marche={marche} onChange={(m) => { setMarche(m); setPublicChoisi(""); setErreur(""); }} disabled={occupe} />
         <button type="button" className="content-secondary" onClick={autre} disabled={occupe}>
           <RefreshCw size={15} className={occupe ? "spin" : ""} /> {occupe ? "L’IA cherche et écrit… (20-30 s)" : script ? "Autre script" : "Générer un script"}
         </button>
@@ -144,10 +154,7 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Pour qui ?
           <select value={publicChoisi} onChange={(e) => setPublicChoisi(e.target.value)} disabled={occupe}>
             <option value="">Au choix de l'IA</option>
-            <option value="acheteurs">Acheteurs</option>
-            <option value="vendeurs">Vendeurs</option>
-            <option value="premiers acheteurs">Premiers acheteurs</option>
-            <option value="nouveaux arrivants">Nouveaux arrivants</option>
+            {PUBLICS[marche].map((p) => <option key={p} value={p}>{majuscule(p)}</option>)}
           </select>
         </label>
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Type
@@ -165,7 +172,7 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
       </div>
       {erreur && <p className="content-message erreur">{erreur}</p>}
       {!script ? (
-        <p>Aucun script pour l’instant. Un nouveau script arrive chaque matin vers 6 h.</p>
+        <p>Aucun script{marche === "maroc" ? " pour le Maroc" : ""} pour l’instant. Un nouveau script arrive chaque matin vers 6 h pour chaque marché.</p>
       ) : (
         <>
           <div className="script-meta">
