@@ -4,12 +4,14 @@ export const VILLES = [
   // Laval (plusieurs quartiers : Laval revient plus souvent)
   "Laval (Chomedey)", "Laval (Sainte-Rose)", "Laval (Vimont et Auteuil)", "Laval (Laval-des-Rapides et Pont-Viau)",
   "Laval (Sainte-Dorothée et Laval-Ouest)", "Laval (Duvernay et Saint-Vincent-de-Paul)", "Laval (Fabreville)",
-  // Rive-Nord jusqu'à Mirabel
+  // Rive-Nord de Montréal, vers le nord jusqu'à Saint-Sauveur au maximum
   "Boisbriand", "Sainte-Thérèse", "Blainville", "Rosemère", "Lorraine", "Bois-des-Filion", "Sainte-Anne-des-Plaines",
-  "Saint-Eustache", "Deux-Montagnes", "Mirabel",
-  // Lanaudière
-  "Terrebonne", "Mascouche", "Repentigny", "L'Assomption", "Lavaltrie", "Saint-Lin–Laurentides", "Joliette",
+  "Saint-Eustache", "Deux-Montagnes", "Mirabel", "Saint-Jérôme", "Prévost", "Saint-Sauveur",
+  // Lanaudière, jusqu'à L'Assomption au maximum
+  "Terrebonne", "Mascouche", "Repentigny", "Charlemagne", "L'Assomption",
 ];
+// Territoire à respecter dans tous les scripts du Québec
+const TERRITOIRE = "Territoire desservi, à respecter strictement : Laval, la Rive-Nord de Montréal (vers le nord jusqu'à Saint-Jérôme, Prévost et Saint-Sauveur au maximum) et le sud de Lanaudière (Terrebonne, Mascouche, Repentigny, Charlemagne, jusqu'à L'Assomption au maximum). Ne présente jamais Montréal, la Rive-Sud ni une ville hors de ce territoire comme secteur desservi ou recherché.";
 export const PUBLICS = ["vendeurs", "acheteurs", "premiers acheteurs", "nouveaux arrivants"];
 
 // Marché marocain : mêmes scripts, autres villes, autres publics, autre numéro
@@ -144,8 +146,9 @@ export async function genererScript(apiKey: string, sujet: { ville: string; publ
       "Français clair et courant, tel qu'on le parle au Maroc (pas de tournures québécoises), chaleureux, énergique, VOUVOIEMENT. Phrases courtes, faciles à dire face caméra. Montants en dirhams (DH). " +
       "Chiffres et faits locaux : uniquement ceux de la liste de faits fournie (à présenter comme des ordres de grandeur à confirmer chez le notaire) ou ceux trouvés dans tes recherches (avec la source). Aucun prix au mètre carré sans source. Aucune généralisation non sourcée. Si tu n'es pas certain d'un fait, ne l'utilise pas. " +
       "Ne présente jamais Mohamed comme courtier, notaire ou conseiller fiscal au Maroc ; ne mentionne ni le Québec ni Vendirect. Jamais de promesse de rendement ni de conseil financier ou fiscal personnalisé. Réponds à la fin UNIQUEMENT avec un objet JSON valide."
-    : "Tu écris des scripts de Reels Instagram et TikTok pour Mohamed El Berhdadi, courtier immobilier résidentiel (Vendirect inc.) qui couvre Laval, la Rive-Nord jusqu'à Mirabel et Lanaudière. " +
+    : "Tu écris des scripts de Reels Instagram et TikTok pour Mohamed El Berhdadi, courtier immobilier résidentiel (Vendirect inc.) qui couvre Laval, la Rive-Nord de Montréal jusqu'à Saint-Sauveur et Lanaudière jusqu'à L'Assomption. " +
     "Français québécois naturel, parlé, chaleureux, énergique, VOUVOIEMENT. Phrases courtes, faciles à dire face caméra. " +
+    TERRITOIRE + " " +
     "Chiffres et faits locaux : uniquement ceux de la liste de faits fournie ou ceux trouvés dans tes recherches (avec la source). Aucune généralisation non sourcée sur les résidents ou les acheteurs d'une ville. Si tu n'es pas certain d'un fait, ne l'utilise pas. " +
     "Jamais de promesse de rendement ni de conseil financier personnalisé. Réponds à la fin UNIQUEMENT avec un objet JSON valide.";
   const user =

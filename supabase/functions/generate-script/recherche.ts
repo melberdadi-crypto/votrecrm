@@ -35,6 +35,22 @@ export type Demande = {
   budget_choisi?: string;
 };
 
+// Territoire des publications : Laval, Rive-Nord jusqu'à Saint-Sauveur, Lanaudière jusqu'à L'Assomption
+export const TERRITOIRE = "Territoire desservi, à respecter strictement : Laval, la Rive-Nord de Montréal (vers le nord jusqu'à Saint-Jérôme, Prévost et Saint-Sauveur au maximum) et le sud de Lanaudière (Terrebonne, Mascouche, Repentigny, Charlemagne, jusqu'à L'Assomption au maximum). Ne présente jamais Montréal, la Rive-Sud ni une ville hors de ce territoire comme secteur desservi ou recherché.";
+const VILLES_TERRITOIRE = [
+  "laval", "chomedey", "sainte rose", "ste rose", "vimont", "auteuil", "fabreville", "duvernay", "pont viau", "laval des rapides", "sainte dorothee", "saint francois", "saint vincent de paul",
+  "rive nord", "boisbriand", "sainte therese", "ste therese", "blainville", "rosemere", "lorraine", "bois des filion", "sainte anne des plaines", "saint eustache", "st eustache",
+  "deux montagnes", "mirabel", "saint jerome", "st jerome", "prevost", "piedmont", "saint sauveur", "st sauveur", "sainte anne des lacs", "saint colomban", "sainte sophie", "laurentide",
+  "terrebonne", "lachenaie", "la plaine", "mascouche", "repentigny", "le gardeur", "charlemagne", "assomption", "lanaudiere",
+];
+const normaliser = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]+/g, " ").trim();
+// Acheteur compatible : secteur dans le territoire, ou sans préférence
+const dansTerritoire = (secteur: string | null) => {
+  const n = normaliser(secteur || "");
+  if (!n || /pas de choix|peu importe|aucun|n importe/.test(n)) return true;
+  return VILLES_TERRITOIRE.some((v) => n.includes(v));
+};
+
 const propre = (v: string) => v.replace(/_/g, " ").replace(/\s+/g, " ").trim();
 const compter = (valeurs: (string | null)[]) => {
   const c: Record<string, number> = {};
@@ -48,7 +64,9 @@ export async function demandeAcheteurs(admin: any, orgId: string, type: string, 
   const { data, error } = await admin.from("contacts").select("type_propriete, secteur, budget, echeancier, preapprobation")
     .eq("organization_id", orgId).eq("project", "Achat").is("deleted_at", null).ilike("type_propriete", t.motif);
   if (error) throw new Error("Lecture des acheteurs : " + error.message);
-  const rows = (data || []) as { type_propriete: string | null; secteur: string | null; budget: string | null; echeancier: string | null; preapprobation: string | null }[];
+  const tous = (data || []) as { type_propriete: string | null; secteur: string | null; budget: string | null; echeancier: string | null; preapprobation: string | null }[];
+  // Seuls les acheteurs qui cherchent dans le territoire comptent (pas ceux qui ne veulent que Montréal, par exemple)
+  const rows = tous.filter((r) => dansTerritoire(r.secteur));
   // Des acheteurs qui acceptent « duplex ou triplex » : on le dit tel quel
   const mixte = (type === "duplex" || type === "triplex") && rows.some((r) => /duplex/i.test(r.type_propriete || "") && /triplex/i.test(r.type_propriete || ""));
   return {
@@ -62,6 +80,7 @@ export async function demandeAcheteurs(admin: any, orgId: string, type: string, 
     budgets: compter(rows.map((r) => r.budget)),
     echeanciers: compter(rows.map((r) => r.echeancier)),
     secteurs: [...new Set(rows.map((r) => r.secteur).filter((s): s is string => !!s && !/pas de choix/i.test(s)).map(propre))],
+    // Les secteurs listés peuvent contenir des villes hors territoire (ex. « Montréal, Laval ») : l'IA ne garde que le territoire
     secteur_choisi: filtres.secteur?.trim() || undefined,
     budget_choisi: filtres.budget?.trim() || undefined,
   };
@@ -81,7 +100,7 @@ function faitsDemande(d: Demande) {
 - Acheteurs pré-approuvés : ${d.preapprouves} ${d.preapprouves === 0 ? "(NE PAS écrire « pré-approuvés » ni « financement confirmé »)" : ""}
 - Budgets (nombre d'acheteurs) : ${Object.entries(d.budgets).map(([b, n]) => `${b} (${n})`).join(" ; ") || "non précisé"}
 - Échéanciers : ${Object.entries(d.echeanciers).map(([e, n]) => `${e} (${n})`).join(" ; ") || "non précisé"}
-- Secteurs souhaités (tels que saisis par les acheteurs, à regrouper proprement) : ${d.secteurs.join(" ; ") || "non précisé"}
+- Secteurs souhaités (tels que saisis par les acheteurs ; ne garde QUE les villes du territoire, regroupées proprement) : ${d.secteurs.join(" ; ") || "non précisé"}
 ${d.secteur_choisi ? `- SECTEUR IMPOSÉ pour cette annonce : ${d.secteur_choisi}` : ""}
 ${d.budget_choisi ? `- BUDGET IMPOSÉ pour cette annonce : ${d.budget_choisi}` : ""}`;
 }
@@ -99,10 +118,11 @@ const FAITS_ACHETEURS = `
 const REGLES =
   "Règles absolues : tu n'inventes AUCUN chiffre, aucun critère, aucune propriété à vendre et aucun acheteur qui ne figure pas dans les faits fournis. " +
   "Tu peux arrondir vers le bas (« plusieurs acheteurs ») mais jamais vers le haut. Aucun nom, aucune information personnelle. " +
-  "Pas de promesse de vente garantie, de prix garanti, de délai garanti ni de rendement. Tu regroupes les secteurs en zones claires (ex. Laval, Rive-Nord, Montréal) sans en ajouter. " +
+  "Pas de promesse de vente garantie, de prix garanti, de délai garanti ni de rendement. Tu regroupes les secteurs en zones claires (ex. Laval, Rive-Nord, Lanaudière) sans en ajouter. " +
+  TERRITOIRE + " " +
   "Tu écris en français québécois, ton chaleureux, professionnel et direct, VOUVOIEMENT. Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour.";
 
-const SYSTEME = "Tu es le responsable des réseaux sociaux de Mohamed El Berhdadi, courtier immobilier résidentiel à Laval (Vendirect inc.), qui couvre Laval, la Rive-Nord et Lanaudière. " + REGLES;
+const SYSTEME = "Tu es le responsable des réseaux sociaux de Mohamed El Berhdadi, courtier immobilier résidentiel à Laval (Vendirect inc.), qui couvre Laval, la Rive-Nord de Montréal (jusqu'à Saint-Sauveur) et Lanaudière (jusqu'à L'Assomption). " + REGLES;
 
 // L'IA met parfois de vrais retours à la ligne dans les chaînes JSON : on les échappe avant JSON.parse
 function parseJson(brut: string) {
