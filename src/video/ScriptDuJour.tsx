@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, ExternalLink, MapPin, MonitorPlay, RefreshCw, Users, Video, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { ChoixMarche, type Marche, TYPES_PROPRIETE } from "../ContentView";
+import { ChoixMarche, type Marche, SECTEURS_QUEBEC, TERRITOIRE_QUEBEC, TYPES_PROPRIETE } from "../ContentView";
 
 const PUBLICS: Record<Marche, string[]> = {
   quebec: ["acheteurs", "vendeurs", "premiers acheteurs", "nouveaux arrivants"],
@@ -100,6 +100,7 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
   const [publicChoisi, setPublicChoisi] = useState("");
   const [typeChoisi, setTypeChoisi] = useState("");
   const [proprieteChoisie, setProprieteChoisie] = useState("duplex");
+  const [secteurChoisi, setSecteurChoisi] = useState("");
   const [marche, setMarche] = useState<Marche>("quebec");
 
   const charger = useCallback(async () => {
@@ -119,7 +120,10 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
       const body: Record<string, string> = { marche };
       if (script && script.status === "propose") body.remplacer = script.id;
       if (typeChoisi) body.type = typeChoisi;
-      if (estCible(typeChoisi)) body.type_propriete = proprieteChoisie;
+      if (estCible(typeChoisi)) {
+        body.type_propriete = proprieteChoisie;
+        if (secteurChoisi) body.secteur = secteurChoisi;
+      }
       else if (publicChoisi) body.public = publicChoisi;
       const { error } = await supabase.functions.invoke("generate-script", { body });
       if (error) {
@@ -180,12 +184,20 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
             </select>
           </label>
         )}
+        {estCible(typeChoisi) && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Secteur
+            <select value={secteurChoisi} onChange={(e) => setSecteurChoisi(e.target.value)} disabled={occupe}>
+              {SECTEURS_QUEBEC.map((t) => <option key={t.nom} value={t.id}>{t.nom}</option>)}
+            </select>
+          </label>
+        )}
         {(publicChoisi || typeChoisi) && (
           <button type="button" className="content-primary" onClick={autre} disabled={occupe}>
             <RefreshCw size={15} className={occupe ? "spin" : ""} /> {occupe ? "L’IA écrit… (20-30 s)" : "Générer ce script"}
           </button>
         )}
       </div>
+      {marche === "quebec" && <p className="content-note" style={{ margin: "0 0 8px" }}>Territoire : {TERRITOIRE_QUEBEC}</p>}
       {erreur && <p className="content-message erreur">{erreur}</p>}
       {!script ? (
         <p>Aucun script{marche === "maroc" ? " pour le Maroc" : ""} pour l’instant. Un nouveau script arrive chaque matin vers 6 h pour chaque marché.</p>

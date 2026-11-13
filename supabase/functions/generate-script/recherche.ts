@@ -51,6 +51,20 @@ const dansTerritoire = (secteur: string | null) => {
   return VILLES_TERRITOIRE.some((v) => n.includes(v));
 };
 
+// Secteur choisi dans le CRM : on ne compte que les acheteurs de ce secteur (ou sans préférence)
+const ZONES: { cle: RegExp; villes: string[] }[] = [
+  { cle: /^laval/i, villes: ["laval", "chomedey", "sainte rose", "ste rose", "vimont", "auteuil", "fabreville", "duvernay", "pont viau", "laval des rapides", "sainte dorothee", "saint francois", "saint vincent de paul"] },
+  { cle: /^rive.nord/i, villes: ["rive nord", "boisbriand", "sainte therese", "ste therese", "blainville", "rosemere", "lorraine", "bois des filion", "sainte anne des plaines", "saint eustache", "st eustache", "deux montagnes", "mirabel", "saint jerome", "st jerome", "prevost", "piedmont", "saint sauveur", "st sauveur", "sainte anne des lacs", "saint colomban", "sainte sophie", "laurentide"] },
+  { cle: /lanaudi/i, villes: ["terrebonne", "lachenaie", "la plaine", "mascouche", "repentigny", "le gardeur", "charlemagne", "assomption", "lanaudiere"] },
+];
+const dansZone = (secteur: string | null, zone?: string) => {
+  const z = zone ? ZONES.find((x) => x.cle.test(normaliser(zone).replace(/ /g, "-")) || x.cle.test(zone)) : undefined;
+  if (!z) return true;
+  const n = normaliser(secteur || "");
+  if (!n || /pas de choix|peu importe|aucun|n importe/.test(n)) return true;
+  return z.villes.some((v) => n.includes(v));
+};
+
 const propre = (v: string) => v.replace(/_/g, " ").replace(/\s+/g, " ").trim();
 const compter = (valeurs: (string | null)[]) => {
   const c: Record<string, number> = {};
@@ -66,7 +80,7 @@ export async function demandeAcheteurs(admin: any, orgId: string, type: string, 
   if (error) throw new Error("Lecture des acheteurs : " + error.message);
   const tous = (data || []) as { type_propriete: string | null; secteur: string | null; budget: string | null; echeancier: string | null; preapprobation: string | null }[];
   // Seuls les acheteurs qui cherchent dans le territoire comptent (pas ceux qui ne veulent que Montréal, par exemple)
-  const rows = tous.filter((r) => dansTerritoire(r.secteur));
+  const rows = tous.filter((r) => dansTerritoire(r.secteur) && dansZone(r.secteur, filtres.secteur));
   // Des acheteurs qui acceptent « duplex ou triplex » : on le dit tel quel
   const mixte = (type === "duplex" || type === "triplex") && rows.some((r) => /duplex/i.test(r.type_propriete || "") && /triplex/i.test(r.type_propriete || ""));
   return {

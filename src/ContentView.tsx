@@ -23,6 +23,14 @@ const VOLETS: { id: Volet; nom: string; aide: string }[] = [
   { id: "recherche", nom: "On recherche · vendeurs", aide: "« J’ai des acheteurs pour votre propriété », d’après vos vrais acheteurs du CRM" },
   { id: "acheteurs", nom: "Acheteurs", aide: "« Vous cherchez un duplex ? Je vous accompagne »" },
 ];
+// Territoire des publications au Québec
+export const TERRITOIRE_QUEBEC = "Laval · Rive-Nord jusqu’à Saint-Sauveur · Lanaudière jusqu’à L’Assomption";
+export const SECTEURS_QUEBEC: { id: string; nom: string }[] = [
+  { id: "", nom: "Tout le territoire" },
+  { id: "Laval", nom: "Laval" },
+  { id: "Rive-Nord (de Saint-Eustache à Saint-Sauveur)", nom: "Rive-Nord" },
+  { id: "Sud de Lanaudière (Terrebonne, Mascouche, Repentigny, Charlemagne, L'Assomption)", nom: "Lanaudière (sud)" },
+];
 export const TYPES_PROPRIETE: { id: string; nom: string }[] = [
   { id: "duplex", nom: "Duplex" }, { id: "triplex", nom: "Triplex" }, { id: "quadruplex", nom: "Quadruplex" },
   { id: "maison", nom: "Maison" }, { id: "condo", nom: "Condo" }, { id: "terrain", nom: "Terrain" },
@@ -103,6 +111,7 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
   const [marche, setMarche] = useState<Marche>("quebec");
   const [voletChoisi, setVolet] = useState<Volet>("conseil");
   const [typeChoisi, setTypeChoisi] = useState("duplex");
+  const [secteurChoisi, setSecteurChoisi] = useState("");
   const volet: Volet = marche === "quebec" ? voletChoisi : "conseil";
 
   const load = useCallback(async () => {
@@ -163,7 +172,7 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
     try {
       await invoke("generate-content", {
         marche,
-        ...(volet !== "conseil" ? { type: volet, type_propriete: typeChoisi } : {}),
+        ...(volet !== "conseil" ? { type: volet, type_propriete: typeChoisi, ...(secteurChoisi ? { secteur: secteurChoisi } : {}) } : {}),
         ...(current && current.status === "proposee" ? { remplacer: current.id } : {}),
       });
       announce("Nouvelle idée prête");
@@ -192,7 +201,7 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
     <div className="content-studio">
       <div className="marche-barre">
         <ChoixMarche marche={marche} onChange={(m) => { setMarche(m); setMessage(null); }} disabled={Boolean(busy)} />
-        <span>{marche === "maroc" ? "Achat et vente à Casablanca, Marrakech, El Jadida, Mohammedia, Rabat et Tanger · numéro affiché : +212 664 908 900" : "Laval, Rive-Nord et Lanaudière"}</span>
+        <span>{marche === "maroc" ? "Achat et vente à Casablanca, Marrakech, El Jadida, Mohammedia, Rabat et Tanger · numéro affiché : +212 664 908 900" : TERRITOIRE_QUEBEC}</span>
       </div>
       {marche === "quebec" && (
         <div className="marche-barre volet-barre">
@@ -210,6 +219,13 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
             <label className="volet-type">Type de propriété
               <select value={typeChoisi} onChange={(e) => setTypeChoisi(e.target.value)} disabled={Boolean(busy)}>
                 {TYPES_PROPRIETE.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
+              </select>
+            </label>
+          )}
+          {volet !== "conseil" && (
+            <label className="volet-type">Secteur
+              <select value={secteurChoisi} onChange={(e) => setSecteurChoisi(e.target.value)} disabled={Boolean(busy)}>
+                {SECTEURS_QUEBEC.map((t) => <option key={t.nom} value={t.id}>{t.nom}</option>)}
               </select>
             </label>
           )}
@@ -232,6 +248,7 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
               <span>{formatDate(current.post_date)}</span>
               {current.theme && <span>· {current.theme}</span>}
               {current.cible?.libelle && <span className="content-badge">{current.cible.libelle}{current.cible.nb_acheteurs ? ` · ${current.cible.nb_acheteurs} acheteur${current.cible.nb_acheteurs > 1 ? "s" : ""} au CRM` : ""}</span>}
+              {current.cible?.zone && <span>· {current.cible.zone}</span>}
               {current.cible?.mot_cle && <span>· mot-clé Instagram : {current.cible.mot_cle}</span>}
             </div>
             {current.status === "erreur" && current.error && <p className="content-message erreur">{current.error}</p>}
