@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, ExternalLink, MapPin, MonitorPlay, RefreshCw, Users, Video, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { ChoixMarche, type Marche } from "../ContentView";
+import { ChoixMarche, type Marche, TYPES_PROPRIETE } from "../ContentView";
 
 const PUBLICS: Record<Marche, string[]> = {
   quebec: ["acheteurs", "vendeurs", "premiers acheteurs", "nouveaux arrivants"],
@@ -15,7 +15,7 @@ export type ReelScript = {
   script_date: string;
   ville: string;
   public_cible: string;
-  type: "conseil" | "nouveaute";
+  type: "conseil" | "nouveaute" | "recherche" | "acheteurs";
   titre: string | null;
   accroche: string | null;
   parties: { partie: string; texte: string }[];
@@ -25,6 +25,11 @@ export type ReelScript = {
   sources: { titre?: string; url: string }[];
   status: "propose" | "filme" | "refuse";
 };
+
+const LIBELLES_TYPE: Record<ReelScript["type"], string> = {
+  conseil: "Conseil", nouveaute: "Nouveauté locale", recherche: "On recherche · vendeurs", acheteurs: "Acheteurs ciblés",
+};
+const estCible = (t: string) => t === "recherche" || t === "acheteurs";
 
 const texteComplet = (s: ReelScript) => s.parties.map((p) => p.texte).join("\n\n");
 
@@ -94,6 +99,7 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
   const [copie, setCopie] = useState("");
   const [publicChoisi, setPublicChoisi] = useState("");
   const [typeChoisi, setTypeChoisi] = useState("");
+  const [proprieteChoisie, setProprieteChoisie] = useState("duplex");
   const [marche, setMarche] = useState<Marche>("quebec");
 
   const charger = useCallback(async () => {
@@ -112,8 +118,9 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
     try {
       const body: Record<string, string> = { marche };
       if (script && script.status === "propose") body.remplacer = script.id;
-      if (publicChoisi) body.public = publicChoisi;
       if (typeChoisi) body.type = typeChoisi;
+      if (estCible(typeChoisi)) body.type_propriete = proprieteChoisie;
+      else if (publicChoisi) body.public = publicChoisi;
       const { error } = await supabase.functions.invoke("generate-script", { body });
       if (error) {
         const ctx = (error as { context?: Response }).context;
@@ -145,25 +152,34 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
     <section className="panel settings-panel script-jour">
       <div className="script-entete">
         <div className="studio-step"><span><Video size={13} /></span><h2>Script du jour</h2></div>
-        <ChoixMarche marche={marche} onChange={(m) => { setMarche(m); setPublicChoisi(""); setErreur(""); }} disabled={occupe} />
+        <ChoixMarche marche={marche} onChange={(m) => { setMarche(m); setPublicChoisi(""); if (m === "maroc" && estCible(typeChoisi)) setTypeChoisi(""); setErreur(""); }} disabled={occupe} />
         <button type="button" className="content-secondary" onClick={autre} disabled={occupe}>
           <RefreshCw size={15} className={occupe ? "spin" : ""} /> {occupe ? "L’IA cherche et écrit… (20-30 s)" : script ? "Autre script" : "Générer un script"}
         </button>
       </div>
       <div className="script-choix" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", margin: "6px 0 10px" }}>
-        <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Pour qui ?
+        {!estCible(typeChoisi) && <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Pour qui ?
           <select value={publicChoisi} onChange={(e) => setPublicChoisi(e.target.value)} disabled={occupe}>
             <option value="">Au choix de l'IA</option>
             {PUBLICS[marche].map((p) => <option key={p} value={p}>{majuscule(p)}</option>)}
           </select>
-        </label>
+        </label>}
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Type
           <select value={typeChoisi} onChange={(e) => setTypeChoisi(e.target.value)} disabled={occupe}>
             <option value="">Au choix de l'IA</option>
             <option value="conseil">Conseil du jour</option>
             <option value="nouveaute">Nouveauté locale</option>
+            {marche === "quebec" && <option value="recherche">On recherche (vise les vendeurs)</option>}
+            {marche === "quebec" && <option value="acheteurs">Acheteurs ciblés</option>}
           </select>
         </label>
+        {estCible(typeChoisi) && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>Type de propriété
+            <select value={proprieteChoisie} onChange={(e) => setProprieteChoisie(e.target.value)} disabled={occupe}>
+              {TYPES_PROPRIETE.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
+            </select>
+          </label>
+        )}
         {(publicChoisi || typeChoisi) && (
           <button type="button" className="content-primary" onClick={autre} disabled={occupe}>
             <RefreshCw size={15} className={occupe ? "spin" : ""} /> {occupe ? "L’IA écrit… (20-30 s)" : "Générer ce script"}
@@ -178,7 +194,7 @@ export function ScriptDuJour({ connected, onScript }: { connected: boolean; onSc
           <div className="script-meta">
             <span><MapPin size={13} /> {script.ville}</span>
             <span><Users size={13} /> {script.public_cible}</span>
-            <span className={`script-type script-type--${script.type}`}>{script.type === "nouveaute" ? "Nouveauté locale" : "Conseil"}</span>
+            <span className={`script-type script-type--${script.type}`}>{LIBELLES_TYPE[script.type] || "Conseil"}</span>
             {script.duree_secondes && <span>≈ {script.duree_secondes} s</span>}
             {script.status === "filme" && <span className="script-filme"><Check size={13} /> Filmé</span>}
           </div>
