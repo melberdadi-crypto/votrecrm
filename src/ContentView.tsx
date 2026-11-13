@@ -16,9 +16,33 @@ export function ChoixMarche({ marche, onChange, disabled }: { marche: Marche; on
   );
 }
 
+// Publications ciblées par type de propriété (Québec) : « On recherche » vise les vendeurs, « Acheteurs » vise les acheteurs
+export type Volet = "conseil" | "recherche" | "acheteurs";
+const VOLETS: { id: Volet; nom: string; aide: string }[] = [
+  { id: "conseil", nom: "Idée du jour", aide: "Conseils, quartiers, financement" },
+  { id: "recherche", nom: "On recherche · vendeurs", aide: "« J’ai des acheteurs pour votre propriété », d’après vos vrais acheteurs du CRM" },
+  { id: "acheteurs", nom: "Acheteurs", aide: "« Vous cherchez un duplex ? Je vous accompagne »" },
+];
+// Territoire des publications au Québec
+export const TERRITOIRE_QUEBEC = "Laval · Rive-Nord jusqu’à Saint-Sauveur · Lanaudière jusqu’à L’Assomption";
+export const SECTEURS_QUEBEC: { id: string; nom: string }[] = [
+  { id: "", nom: "Tout le territoire" },
+  { id: "Laval", nom: "Laval" },
+  { id: "Rive-Nord (de Saint-Eustache à Saint-Sauveur)", nom: "Rive-Nord" },
+  { id: "Sud de Lanaudière (Terrebonne, Mascouche, Repentigny, Charlemagne, L'Assomption)", nom: "Lanaudière (sud)" },
+];
+export const TYPES_PROPRIETE: { id: string; nom: string }[] = [
+  { id: "duplex", nom: "Duplex" }, { id: "triplex", nom: "Triplex" }, { id: "quadruplex", nom: "Quadruplex" },
+  { id: "maison", nom: "Maison" }, { id: "condo", nom: "Condo" }, { id: "terrain", nom: "Terrain" },
+];
+
+type Cible = { public?: string; type_propriete?: string; libelle?: string; mot_cle?: string; zone?: string | null; budget?: string | null; nb_acheteurs?: number | null };
+
 type ContentPost = {
   id: string;
   marche: Marche;
+  type_contenu?: Volet;
+  cible?: Cible | null;
   post_date: string;
   theme: string | null;
   kicker: string | null;
@@ -85,6 +109,10 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
   const [texteIg, setTexteIg] = useState("");
   const [texteFb, setTexteFb] = useState("");
   const [marche, setMarche] = useState<Marche>("quebec");
+  const [voletChoisi, setVolet] = useState<Volet>("conseil");
+  const [typeChoisi, setTypeChoisi] = useState("duplex");
+  const [secteurChoisi, setSecteurChoisi] = useState("");
+  const volet: Volet = marche === "quebec" ? voletChoisi : "conseil";
 
   const load = useCallback(async () => {
     if (!supabase || !connected) { setLoading(false); return; }
@@ -94,15 +122,21 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
       supabase.from("content_posts").select("*").order("post_date", { ascending: false }).order("created_at", { ascending: false }).limit(40),
     ]);
     setAllowed(Boolean(settings));
-    setPosts(((data || []) as ContentPost[]).map((p) => ({ ...p, marche: p.marche || "quebec" })));
+    setPosts(((data || []) as ContentPost[]).map((p) => ({ ...p, marche: p.marche || "quebec", type_contenu: p.type_contenu || "conseil" })));
     setLoading(false);
   }, [connected]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const duMarche = posts.filter((p) => p.marche === marche);
+  const duMarche = posts.filter((p) => p.marche === marche && p.type_contenu === volet);
+  const enAttente = (v: Volet) => posts.filter((p) => p.marche === "quebec" && p.type_contenu === v && p.status === "proposee").length;
   const current = duMarche.find((p) => p.status === "proposee" || p.status === "erreur");
   const historique = duMarche.filter((p) => p.status === "publiee" || (p.status === "refusee" && p !== current)).slice(0, 12);
+
+  // Le type de propriété suit la publication affichée
+  useEffect(() => {
+    if (current?.cible?.type_propriete) setTypeChoisi(current.cible.type_propriete);
+  }, [current?.id, current?.cible?.type_propriete]);
 
   // Les zones de texte suivent l'idée affichée (changement de marché, nouvelle idée)
   useEffect(() => {
@@ -136,7 +170,11 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
   const generer = async () => {
     setBusy("generer"); setMessage(null);
     try {
-      await invoke("generate-content", { marche, ...(current && current.status === "proposee" ? { remplacer: current.id } : {}) });
+      await invoke("generate-content", {
+        marche,
+        ...(volet !== "conseil" ? { type: volet, type_propriete: typeChoisi, ...(secteurChoisi ? { secteur: secteurChoisi } : {}) } : {}),
+        ...(current && current.status === "proposee" ? { remplacer: current.id } : {}),
+      });
       announce("Nouvelle idée prête");
       await load();
     } catch (err) {
@@ -163,8 +201,37 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
     <div className="content-studio">
       <div className="marche-barre">
         <ChoixMarche marche={marche} onChange={(m) => { setMarche(m); setMessage(null); }} disabled={Boolean(busy)} />
-        <span>{marche === "maroc" ? "Achat et vente à Casablanca, Marrakech, El Jadida, Mohammedia, Rabat et Tanger · numéro affiché : +212 664 908 900" : "Laval, Rive-Nord et Lanaudière"}</span>
+        <span>{marche === "maroc" ? "Achat et vente à Casablanca, Marrakech, El Jadida, Mohammedia, Rabat et Tanger · numéro affiché : +212 664 908 900" : TERRITOIRE_QUEBEC}</span>
       </div>
+      {marche === "quebec" && (
+        <div className="marche-barre volet-barre">
+          <div className="marche-choix" role="group" aria-label="Type de publication">
+            {VOLETS.map((v) => {
+              const n = enAttente(v.id);
+              return (
+                <button key={v.id} type="button" className={volet === v.id ? "actif" : ""} aria-pressed={volet === v.id} disabled={Boolean(busy)} onClick={() => { setVolet(v.id); setMessage(null); }}>
+                  {v.nom}{n > 0 ? ` (${n})` : ""}
+                </button>
+              );
+            })}
+          </div>
+          {volet !== "conseil" && (
+            <label className="volet-type">Type de propriété
+              <select value={typeChoisi} onChange={(e) => setTypeChoisi(e.target.value)} disabled={Boolean(busy)}>
+                {TYPES_PROPRIETE.map((t) => <option key={t.id} value={t.id}>{t.nom}</option>)}
+              </select>
+            </label>
+          )}
+          {volet !== "conseil" && (
+            <label className="volet-type">Secteur
+              <select value={secteurChoisi} onChange={(e) => setSecteurChoisi(e.target.value)} disabled={Boolean(busy)}>
+                {SECTEURS_QUEBEC.map((t) => <option key={t.nom} value={t.id}>{t.nom}</option>)}
+              </select>
+            </label>
+          )}
+          <span>{VOLETS.find((v) => v.id === volet)?.aide}</span>
+        </div>
+      )}
       {message && <p className={`content-message ${message.type}`} role="status">{message.text}</p>}
 
       {current ? (
@@ -180,6 +247,9 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
               <span className="content-badge">{statusLabels[current.status]}</span>
               <span>{formatDate(current.post_date)}</span>
               {current.theme && <span>· {current.theme}</span>}
+              {current.cible?.libelle && <span className="content-badge">{current.cible.libelle}{current.cible.nb_acheteurs ? ` · ${current.cible.nb_acheteurs} acheteur${current.cible.nb_acheteurs > 1 ? "s" : ""} au CRM` : ""}</span>}
+              {current.cible?.zone && <span>· {current.cible.zone}</span>}
+              {current.cible?.mot_cle && <span>· mot-clé Instagram : {current.cible.mot_cle}</span>}
             </div>
             {current.status === "erreur" && current.error && <p className="content-message erreur">{current.error}</p>}
 
@@ -197,7 +267,7 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
 
             <div className="content-actions">
               <button type="button" className="content-secondary" disabled={Boolean(busy)} onClick={generer}>
-                <RefreshCw size={15} className={busy === "generer" ? "spin" : ""} /> {busy === "generer" ? "L’IA prépare une autre idée…" : "Autre idée"}
+                <RefreshCw size={15} className={busy === "generer" ? "spin" : ""} /> {busy === "generer" ? "L’IA prépare une autre idée…" : volet === "conseil" ? "Autre idée" : `Autre idée · ${TYPES_PROPRIETE.find((t) => t.id === typeChoisi)?.nom}`}
               </button>
               <button type="button" className="content-primary" disabled={Boolean(busy)} onClick={publier}>
                 <Send size={15} /> {busy === "publier" ? "Publication…" : "Valider et publier"}
@@ -209,10 +279,12 @@ export function ContentView({ connected, announce }: { connected: boolean; annou
       ) : (
         <section className="panel settings-panel content-empty">
           <Sparkles size={22} />
-          <h2>Aucune idée en attente{marche === "maroc" ? " pour le Maroc" : ""}</h2>
-          <p>Une nouvelle idée de publication arrive chaque matin vers 6 h pour chaque marché. Vous pouvez aussi en demander une maintenant.</p>
+          <h2>Aucune idée en attente{marche === "maroc" ? " pour le Maroc" : volet === "recherche" ? " · On recherche" : volet === "acheteurs" ? " · Acheteurs" : ""}</h2>
+          <p>{volet === "conseil"
+            ? "Une nouvelle idée de publication arrive chaque matin vers 6 h pour chaque marché. Vous pouvez aussi en demander une maintenant."
+            : "Une publication de ce type arrive chaque matin (le type de propriété change chaque jour). Choisissez un type ci-dessus pour en générer une maintenant."}</p>
           <button type="button" className="content-primary" disabled={Boolean(busy)} onClick={generer}>
-            <Sparkles size={15} /> {busy === "generer" ? "L’IA prépare une idée…" : "Générer une idée maintenant"}
+            <Sparkles size={15} /> {busy === "generer" ? "L’IA prépare une idée…" : volet === "conseil" ? "Générer une idée maintenant" : `Générer · ${TYPES_PROPRIETE.find((t) => t.id === typeChoisi)?.nom}`}
           </button>
           {dernierePubliee?.image_url && !dernierePubliee.fb_post_id && (
             <div className="content-fb-manual">
